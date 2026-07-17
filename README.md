@@ -3,7 +3,8 @@
 Formulario público conectado a Google Sheets, Apps Script, HeyGen y Gmail.
 
 La persona elige un espacio disponible, el sistema evita cruces de agenda,
-genera un video personalizado en HeyGen y envía la confirmación por correo.
+inicia inmediatamente un video personalizado en HeyGen y envía la confirmación
+por correo cuando el video termina.
 
 ## Enlaces
 
@@ -66,10 +67,11 @@ flowchart LR
     B --> C[Google Sheet]
     A -->|reserva| B
     B -->|fecha y hora libres| C
-    C -->|trigger cada minuto| D[HeyGen]
+    C -->|registro nuevo: inicio inmediato| D[HeyGen]
     D -->|video terminado| B
     B --> E[Gmail]
     E --> F[Persona invitada]
+    B -->|trigger periódico: seguimiento| D
 ```
 
 ## Seguridad práctica

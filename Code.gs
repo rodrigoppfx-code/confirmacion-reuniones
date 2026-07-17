@@ -40,6 +40,7 @@ const CONFIG_DEFAULTS = [
   ['MAX_REINTENTOS', '3', 'Intentos máximos para generar o consultar un video.', 'SISTEMA'],
   ['MAX_REGISTROS_POR_EJECUCION', '10', 'Filas máximas procesadas en cada ejecución.', 'SISTEMA'],
   ['PROCESAMIENTO_ACTIVO', 'NO', 'SI genera videos y envía correos. NO pausa el consumo de créditos sin cerrar la agenda.', 'SISTEMA'],
+  ['INICIO_INMEDIATO', 'SI', 'SI solicita el video al registrarse. NO deja el inicio exclusivamente al trigger periódico.', 'SISTEMA'],
   ['INTERVALO_TRIGGER_MINUTOS', '1', 'Frecuencia del robot: 1, 5, 10, 15 o 30 minutos.', 'SISTEMA'],
   ['FILA_INICIO_PROCESAMIENTO', '2', 'Primera fila que el robot puede procesar. La fila 1 contiene encabezados.', 'SISTEMA']
 ];
@@ -157,6 +158,7 @@ function obtenerPanelAdmin() {
       remitente: cfg.REMITENTE || '',
       agendaActiva: esSi_(cfg.AGENDA_ACTIVA),
       procesamientoActivo: esSi_(cfg.PROCESAMIENTO_ACTIVO),
+      inicioInmediato: esSi_(cfg.INICIO_INMEDIATO),
       horarios: cfg.HORARIOS_PERMITIDOS || '',
       dias: lista_(cfg.DIAS_HABILITADOS).map(Number),
       anticipacionHoras: Number(cfg.ANTICIPACION_HORAS || 2),
@@ -190,6 +192,7 @@ function guardarPanelAdmin(data) {
     REMITENTE: limpiarTexto_(data.remitente, 120, 'remitente'),
     AGENDA_ACTIVA: data.agendaActiva ? 'SI' : 'NO',
     PROCESAMIENTO_ACTIVO: data.procesamientoActivo ? 'SI' : 'NO',
+    INICIO_INMEDIATO: data.inicioInmediato ? 'SI' : 'NO',
     HORARIOS_PERMITIDOS: validarHorariosAdmin_(data.horarios),
     DIAS_HABILITADOS: validarDiasAdmin_(data.dias),
     ANTICIPACION_HORAS: String(numeroConfig_(data.anticipacionHoras, 2, 0, 720)),
@@ -387,6 +390,14 @@ function doPost(e) {
       ok: true,
       message: 'Tu reunión quedó reservada correctamente.'
     };
+    // Confirma primero la reserva. HeyGen se inicia después y nunca convierte
+    // una reserva válida en un error visual si el proveedor tarda o falla.
+    guardarEstadoReserva_(nonce, result);
+    try {
+      iniciarVideoReservaInmediata_(reserva, cfg);
+    } catch (videoError) {
+      console.error('La reserva se guardó, pero el inicio inmediato no pudo ejecutarse: ' + mensajeError_(videoError));
+    }
   } catch (error) {
     result = {
       source: APP.SOURCE,
@@ -399,6 +410,65 @@ function doPost(e) {
 
   guardarEstadoReserva_(nonce, result);
   return responderPostMessage_(result, cfg.ORIGEN_PUBLICO || '*');
+}
+
+/** Inicia HeyGen apenas se guarda una reserva del formulario público. */
+function iniciarVideoReservaInmediata_(booking, cfg) {
+  if (!esSi_(cfg.INICIO_INMEDIATO) || !esSi_(cfg.PROCESAMIENTO_ACTIVO) || !apiConfigurada_(cfg)) return false;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return false;
+  try {
+    const sheet = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), cfg);
+    const map = obtenerMapaColumnas_(sheet);
+    const rowNumber = buscarFilaReserva_(sheet, map, booking, cfg.ZONA_HORARIA || 'America/Bogota');
+    return rowNumber ? iniciarVideoFila_(sheet, rowNumber, map, cfg) : false;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function buscarFilaReserva_(sheet, map, booking, timeZone) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  const rows = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (normalizarFechaValor_(valorFila_(row, map.date), timeZone) === booking.fecha &&
+        normalizarHoraValor_(valorFila_(row, map.time), timeZone) === booking.hora &&
+        String(valorFila_(row, map.email) || '').trim().toLowerCase() === String(booking.correo || '').trim().toLowerCase()) {
+      return index + 2;
+    }
+  }
+  return 0;
+}
+
+/** Solicita un video para una fila nueva; el trigger periódico continuará el seguimiento. */
+function iniciarVideoFila_(sheet, rowNumber, map, cfg) {
+  if (!esSi_(cfg.PROCESAMIENTO_ACTIVO) || !apiConfigurada_(cfg)) return false;
+  const startRow = numeroConfig_(cfg.FILA_INICIO_PROCESAMIENTO, 2, 2, 1000000);
+  if (rowNumber < startRow) return false;
+  if (rowNumber < 2 || rowNumber > sheet.getLastRow()) return false;
+  const row = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const email = String(valorFila_(row, map.email) || '').trim();
+  const status = String(valorFila_(row, map.status) || '').trim().toUpperCase();
+  if (!email || status) return false;
+  try {
+    const videoId = generarVideoHeyGen_(cfg, row, map);
+    escribirControl_(sheet, rowNumber, map, {
+      videoId: videoId,
+      status: APP.STATUS.GENERATING,
+      attempts: 0,
+      lastError: ''
+    });
+    return true;
+  } catch (error) {
+    registrarErrorFila_(sheet, rowNumber, map, cfg, error, status);
+    return false;
+  }
+}
+
+function inicioInmediatoActivo_(cfg) {
+  return esSi_(cfg.INICIO_INMEDIATO);
 }
 
 function guardarEstadoReserva_(nonce, result) {
@@ -517,6 +587,8 @@ function asegurarPestanaConfig_(ss) {
   if (agendaCell) agendaCell.offset(0, 1).setDataValidation(yesNoValidation);
   const processingCell = buscarCeldaConfig_(sheet, 'PROCESAMIENTO_ACTIVO');
   if (processingCell) processingCell.offset(0, 1).setDataValidation(yesNoValidation);
+  const immediateCell = buscarCeldaConfig_(sheet, 'INICIO_INMEDIATO');
+  if (immediateCell) immediateCell.offset(0, 1).setDataValidation(yesNoValidation);
 }
 
 function asegurarPestanaBloqueos_(ss) {
@@ -756,13 +828,26 @@ function ordenarRegistrosCronologicamente_(sheet, map) {
 }
 
 /** Trigger instalable para respuestas que llegan desde Google Forms. */
-function AL_RECIBIR_FORMULARIO() {
+function AL_RECIBIR_FORMULARIO(e) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return;
+  if (!lock.tryLock(20000)) return;
   try {
     const cfg = leerConfig_();
     const sheet = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), cfg);
-    ordenarRegistrosCronologicamente_(sheet, obtenerMapaColumnas_(sheet));
+    const map = obtenerMapaColumnas_(sheet);
+    const submittedRow = e && e.range && e.range.getSheet().getSheetId() === sheet.getSheetId()
+      ? e.range.getRow() : sheet.getLastRow();
+    const submittedValues = sheet.getRange(submittedRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const booking = {
+      correo: String(valorFila_(submittedValues, map.email) || '').trim(),
+      fecha: normalizarFechaValor_(valorFila_(submittedValues, map.date), cfg.ZONA_HORARIA || 'America/Bogota'),
+      hora: normalizarHoraValor_(valorFila_(submittedValues, map.time), cfg.ZONA_HORARIA || 'America/Bogota')
+    };
+    ordenarRegistrosCronologicamente_(sheet, map);
+    if (inicioInmediatoActivo_(cfg)) {
+      const finalRow = buscarFilaReserva_(sheet, map, booking, cfg.ZONA_HORARIA || 'America/Bogota');
+      iniciarVideoFila_(sheet, finalRow, map, cfg);
+    }
   } finally {
     lock.releaseLock();
   }

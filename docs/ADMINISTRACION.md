@@ -12,17 +12,28 @@ aplica al formulario y al proceso automático.
 
 - Pausa o activa nuevas reservas.
 - Pausa o activa por separado la generación de videos y los correos.
-- Escoge cada cuánto corre el trigger: 1, 5, 10, 15 o 30 minutos.
+- Escoge cada cuánto se consulta el estado de los videos: 1, 5, 10, 15 o 30 minutos.
 - Define la fila inicial de procesamiento.
 - Ejecuta el proceso inmediatamente desde esa fila.
 - Consulta cuántas filas están pendientes, generando, enviadas o con error.
 
 La fila inicial no borra ni modifica las filas anteriores; solo indica desde
 dónde debe buscar el proceso. Las filas ya enviadas se siguen omitiendo.
+Por ejemplo, si guardas `13`, ninguna fila entre la 2 y la 12 será enviada a
+HeyGen. El inicio inmediato y el trigger de respaldo comienzan en la fila 13.
 
 Cuando **Generar videos** está desactivado, el trigger puede seguir apareciendo
 como activo, pero termina sin llamar a HeyGen ni enviar correos. Las reservas
 nuevas quedan pendientes hasta que vuelvas a activarlo.
+
+Cuando **Generar videos** está activado, cada reserva nueva solicita su video
+inmediatamente. El intervalo periódico no controla el inicio: se usa para
+consultar si HeyGen terminó, enviar el correo y recuperar filas pendientes.
+
+El interruptor **Iniciar inmediatamente** permite escoger el modo:
+
+- Activado: la reserva solicita el video al entrar y el trigger hace seguimiento.
+- Desactivado: la fila espera al trigger periódico para iniciar el video.
 
 ### HeyGen, agenda y mensajes
 
