@@ -35,6 +35,14 @@ El interruptor **Iniciar inmediatamente** permite escoger el modo:
 - Activado: la reserva solicita el video al entrar y el trigger hace seguimiento.
 - Desactivado: la fila espera al trigger periódico para iniciar el video.
 
+Cuando el inicio inmediato está activado, el trigger periódico no crea videos
+nuevos: únicamente consulta los `Video ID` existentes y envía los correos. Una
+ejecución manual desde el panel sí puede iniciar filas pendientes.
+
+Antes de solicitar HeyGen, todos los caminos verifican la fila. Si ya contiene
+`Video URL` o `Video ID`, no crean otro video. Esta protección también aplica
+si la fila inicial se cambia accidentalmente hacia una fila ya procesada.
+
 ### HeyGen, agenda y mensajes
 
 Las pestañas del panel permiten cambiar la API key, avatar, voz, guion,

@@ -451,6 +451,9 @@ function iniciarVideoFila_(sheet, rowNumber, map, cfg) {
   const row = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
   const email = String(valorFila_(row, map.email) || '').trim();
   const status = String(valorFila_(row, map.status) || '').trim().toUpperCase();
+  const existingVideoUrl = String(valorFila_(row, map.videoUrl) || '').trim();
+  const existingVideoId = String(valorFila_(row, map.videoId) || '').trim();
+  if (existingVideoUrl || existingVideoId) return false;
   if (!email || status) return false;
   try {
     const videoId = generarVideoHeyGen_(cfg, row, map);
@@ -508,19 +511,29 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
 
     const values = hoja.getRange(startRow, 1, lastRow - startRow + 1, hoja.getLastColumn()).getValues();
     const maxRows = numeroConfig_(cfg.MAX_REGISTROS_POR_EJECUCION, 10, 1, 50);
+    const puedeCrearVideos = Boolean(forcedStartRow) || !inicioInmediatoActivo_(cfg);
     let processed = 0;
 
     for (let index = 0; index < values.length && processed < maxRows; index += 1) {
       const row = values[index];
       const email = valorFila_(row, mapa.email);
       const status = String(valorFila_(row, mapa.status) || '').trim().toUpperCase();
+      const existingVideoUrl = String(valorFila_(row, mapa.videoUrl) || '').trim();
+      const existingVideoId = String(valorFila_(row, mapa.videoId) || '').trim();
       if (!email || status === APP.STATUS.SENT || status === APP.STATUS.ERROR) continue;
+      if (existingVideoUrl) continue;
       if (status && status !== APP.STATUS.GENERATING && status !== APP.STATUS.RETRY) continue;
 
       const rowNumber = index + startRow;
+      let effectiveStatus = status;
+      if (existingVideoId && (!effectiveStatus || effectiveStatus === APP.STATUS.RETRY)) {
+        effectiveStatus = APP.STATUS.GENERATING;
+        escribirControl_(hoja, rowNumber, mapa, { status: APP.STATUS.GENERATING, lastError: '' });
+      }
+      if ((!effectiveStatus || effectiveStatus === APP.STATUS.RETRY) && !puedeCrearVideos) continue;
       processed += 1;
       try {
-        if (!status || status === APP.STATUS.RETRY) {
+        if (!effectiveStatus || effectiveStatus === APP.STATUS.RETRY) {
           const videoId = generarVideoHeyGen_(cfg, row, mapa);
           escribirControl_(hoja, rowNumber, mapa, {
             videoId: videoId,
@@ -531,7 +544,7 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
           continue;
         }
 
-        const videoId = String(valorFila_(row, mapa.videoId) || '').trim();
+        const videoId = existingVideoId;
         if (!videoId) throw new Error('La fila está GENERANDO pero no tiene Video ID.');
         const video = consultarEstadoVideo_(cfg, videoId);
 
@@ -548,7 +561,7 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
           throw failedError;
         }
       } catch (error) {
-        registrarErrorFila_(hoja, rowNumber, mapa, cfg, error, status);
+        registrarErrorFila_(hoja, rowNumber, mapa, cfg, error, effectiveStatus);
       }
     }
   } finally {
