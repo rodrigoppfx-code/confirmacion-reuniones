@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{--green:#1c4423;--leaf:#5fa832;--cream:#f3e5a5;--terra:#b05b2c;--bg:#f2f4ee;--text:#22301f;--muted:#687363;--line:#dce3d6;--white:#fff;--danger:#a0342b}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Arial,sans-serif}
+    button,input,textarea,select{font:inherit}.app{min-height:100vh;display:grid;grid-template-rows:auto auto 1fr auto}
+    header{background:var(--green);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .brand{display:flex;align-items:center;gap:12px}.mark{width:38px;height:38px;border-radius:12px;background:var(--cream);display:grid;place-items:center;color:var(--green);font-size:20px}
+    h1{font-size:19px;margin:0}.subtitle{color:#d6dfce;font-size:12px;margin-top:2px}.status{display:flex;align-items:center;gap:7px;font-size:12px}.dot{width:9px;height:9px;border-radius:50%;background:#9ade68;box-shadow:0 0 0 4px #9ade6829}
+    nav{display:flex;gap:4px;padding:10px 20px;background:#fff;border-bottom:1px solid var(--line);overflow:auto}
+    .tab{border:0;background:transparent;color:var(--muted);padding:9px 13px;border-radius:9px;cursor:pointer;white-space:nowrap;font-weight:700}.tab.active{background:#eaf2e4;color:var(--green)}
+    main{padding:20px 24px 92px;overflow:auto}.panel{display:none;max-width:980px;margin:auto}.panel.active{display:block}
+    .intro{margin:0 0 18px}.intro h2{margin:0 0 4px;font-size:20px}.intro p{margin:0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 4px 14px #1c44230a}.card h3{font-size:15px;margin:0 0 13px;color:var(--green)}
+    .metric{font-size:27px;font-weight:800;color:var(--green)}.metric-label{font-size:12px;color:var(--muted);margin-top:3px}
+    label{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+    .field{margin-bottom:14px}.field:last-child{margin-bottom:0}input,textarea,select{width:100%;border:1.5px solid var(--line);background:#fcfdfb;color:var(--text);border-radius:9px;padding:10px 12px;outline:none}textarea{min-height:86px;resize:vertical}input:focus,textarea:focus,select:focus{border-color:var(--leaf);box-shadow:0 0 0 3px #5fa8321c}
+    .hint{font-size:11px;color:var(--muted);margin-top:5px}.inline{display:flex;align-items:center;gap:10px}.inline input{flex:1}.mini{width:auto;border:1px solid var(--line);background:#fff;padding:9px 11px;border-radius:9px;cursor:pointer;color:var(--green);font-weight:700}
+    .switch-row{display:flex;align-items:center;justify-content:space-between;gap:18px}.switch{position:relative;width:48px;height:27px;flex:none}.switch input{opacity:0;width:0;height:0}.slider{position:absolute;inset:0;border-radius:99px;background:#bcc5b8;cursor:pointer;transition:.2s}.slider:before{content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;border-radius:50%;background:white;transition:.2s;box-shadow:0 2px 5px #0002}.switch input:checked+.slider{background:var(--leaf)}.switch input:checked+.slider:before{transform:translateX(21px)}
+    .days{display:flex;flex-wrap:wrap;gap:7px}.day input{display:none}.day span{display:block;padding:8px 11px;border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer;font-weight:700}.day input:checked+span{background:var(--green);border-color:var(--green);color:var(--cream)}
+    .api-state{display:inline-flex;gap:6px;align-items:center;padding:6px 9px;border-radius:8px;background:#edf6e8;color:var(--green);font-size:12px;font-weight:700;margin-bottom:12px}
+    .block-form{display:grid;grid-template-columns:140px 150px 120px 1fr auto;gap:10px;align-items:end}.block-list{margin-top:16px;border:1px solid var(--line);border-radius:11px;overflow:hidden}.block-row{display:grid;grid-template-columns:90px 115px 80px 1fr 95px;gap:10px;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line)}.block-row:last-child{border-bottom:0}.badge{display:inline-block;padding:4px 7px;border-radius:6px;background:#fff0e8;color:#8b3d16;font-size:10px;font-weight:800}.badge.off{background:#ecefec;color:#758071}.empty{padding:28px;text-align:center;color:var(--muted);background:#fff}
+    .primary,.secondary,.danger{border:0;border-radius:9px;padding:10px 15px;cursor:pointer;font-weight:800}.primary{background:var(--green);color:var(--cream)}.secondary{background:#e9efe5;color:var(--green)}.danger{background:#fff0ef;color:var(--danger)}button:disabled{opacity:.55;cursor:wait}
+    footer{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 24px;display:flex;justify-content:flex-end;align-items:center;gap:10px;box-shadow:0 -8px 25px #1c442312}.save-state{margin-right:auto;color:var(--muted);font-size:12px}
+    .toast{position:fixed;right:22px;bottom:76px;max-width:380px;padding:12px 15px;border-radius:10px;background:var(--green);color:#fff;box-shadow:0 12px 28px #0003;transform:translateY(20px);opacity:0;pointer-events:none;transition:.25s;z-index:5}.toast.show{transform:none;opacity:1}.toast.error{background:var(--danger)}
+    .loading{position:fixed;inset:0;background:#f2f4eef2;display:grid;place-items:center;z-index:10}.spinner{width:38px;height:38px;border:4px solid #dce3d6;border-top-color:var(--leaf);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:760px){.grid,.grid.three{grid-template-columns:1fr}.block-form{grid-template-columns:1fr 1fr}.block-form .wide{grid-column:1/-1}.block-row{grid-template-columns:1fr 1fr}.block-row .reason{grid-column:1/-1}header{align-items:flex-start}main{padding:16px 14px 100px}nav{padding-left:10px}.status{display:none}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><div class="mark">🥑</div><div><h1>Panel Avovite</h1><div class="subtitle">Agenda, HeyGen y automatización</div></div></div>
+    <div class="status"><span class="dot"></span><span id="headerStatus">Cargando sistema…</span></div>
+  </header>
+  <nav>
+    <button class="tab active" data-tab="general">Resumen</button>
+    <button class="tab" data-tab="heygen">HeyGen</button>
+    <button class="tab" data-tab="agenda">Agenda</button>
+    <button class="tab" data-tab="mensajes">Mensajes</button>
+    <button class="tab" data-tab="bloqueos">Bloqueos</button>
+  </nav>
+  <main>
+    <section class="panel active" id="general">
+      <div class="intro"><h2>Estado y automatización</h2><p>Controla cuándo trabaja el robot y desde qué fila comienza.</p></div>
+      <div class="grid three">
+        <div class="card"><div class="metric" id="lastRow">—</div><div class="metric-label">Última fila del Sheet</div></div>
+        <div class="card"><div class="metric" id="sentCount">—</div><div class="metric-label">Registros enviados</div></div>
+        <div class="card"><div class="metric" id="errorCount">—</div><div class="metric-label">Registros con error</div></div>
+      </div>
+      <div class="grid" style="margin-top:14px">
+        <div class="card"><h3>Disponibilidad general</h3><div class="switch-row"><div><strong>Agenda abierta</strong><div class="hint">Desactívala para impedir nuevas reservas inmediatamente.</div></div><label class="switch"><input id="agendaActiva" type="checkbox"><span class="slider"></span></label></div></div>
+        <div class="card"><h3>Consumo de HeyGen</h3><div class="switch-row"><div><strong>Generar videos</strong><div class="hint">Desactívalo para detener videos y correos sin cerrar la agenda.</div></div><label class="switch"><input id="procesamientoActivo" type="checkbox"><span class="slider"></span></label></div></div>
+        <div class="card"><h3>Robot automático</h3><div class="field"><label for="intervaloTrigger">Ejecutar cada</label><select id="intervaloTrigger"><option value="1">1 minuto</option><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="15">15 minutos</option><option value="30">30 minutos</option></select></div><div class="hint" id="triggerState"></div></div>
+        <div class="card"><h3>Rango de procesamiento</h3><div class="grid"><div class="field"><label for="filaInicio">Comenzar desde fila</label><input id="filaInicio" type="number" min="2" step="1"></div><div class="field"><label for="maxRegistros">Filas por ejecución</label><input id="maxRegistros" type="number" min="1" max="50"></div></div><button class="secondary" id="processBtn" type="button">▶ Procesar ahora desde esta fila</button></div>
+        <div class="card"><h3>Control de errores</h3><div class="field"><label for="maxReintentos">Máximo de reintentos</label><input id="maxReintentos" type="number" min="1" max="10"></div><div class="hint">Al superar este número la fila queda en ERROR para revisión manual.</div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="heygen">
+      <div class="intro"><h2>Configuración de HeyGen</h2><p>Cambia credenciales, avatar y voz sin modificar Code.gs.</p></div>
+      <div class="card">
+        <div class="api-state" id="apiState">● Verificando API</div>
+        <div class="field"><label for="apiKey">Nueva API key</label><div class="inline"><input id="apiKey" type="password" autocomplete="new-password" placeholder="Déjala vacía para conservar la actual"><button class="mini" id="showApi" type="button">Mostrar</button></div><div class="hint" id="apiMask"></div></div>
+        <div class="grid"><div class="field"><label for="avatarId">Avatar ID</label><input id="avatarId" type="text"></div><div class="field"><label for="voiceId">Voice ID</label><input id="voiceId" type="text"></div></div>
+        <div class="field"><label for="guion">Guion del video</label><textarea id="guion"></textarea><div class="hint">Variables disponibles: {nombre}, {apellido}, {fecha}, {hora}</div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="agenda">
+      <div class="intro"><h2>Fechas y horarios</h2><p>Estos cambios se reflejan automáticamente en el formulario público.</p></div>
+      <div class="grid">
+        <div class="card"><h3>Días habilitados</h3><div class="days" id="days"><label class="day"><input type="checkbox" value="1"><span>Lun</span></label><label class="day"><input type="checkbox" value="2"><span>Mar</span></label><label class="day"><input type="checkbox" value="3"><span>Mié</span></label><label class="day"><input type="checkbox" value="4"><span>Jue</span></label><label class="day"><input type="checkbox" value="5"><span>Vie</span></label><label class="day"><input type="checkbox" value="6"><span>Sáb</span></label><label class="day"><input type="checkbox" value="7"><span>Dom</span></label></div></div>
+        <div class="card"><h3>Horarios ofrecidos</h3><div class="field"><label for="horarios">Horas separadas por coma</label><textarea id="horarios" placeholder="09:00,10:00,14:30"></textarea></div></div>
+        <div class="card"><h3>Ventana de reservas</h3><div class="grid"><div class="field"><label for="anticipacionHoras">Anticipación mínima</label><input id="anticipacionHoras" type="number" min="0"><div class="hint">Horas</div></div><div class="field"><label for="diasMaximoAdelanto">Máximo hacia futuro</label><input id="diasMaximoAdelanto" type="number" min="1"><div class="hint">Días</div></div></div></div>
+        <div class="card"><h3>Solo fechas específicas (opcional)</h3><div class="field"><label for="fechasPermitidas">Fechas YYYY-MM-DD</label><textarea id="fechasPermitidas" placeholder="Vacío = cualquier fecha válida&#10;2026-08-03, 2026-08-05"></textarea></div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="mensajes">
+      <div class="intro"><h2>Correo de confirmación</h2><p>Personaliza el mensaje que recibe cada persona.</p></div>
+      <div class="card"><div class="field"><label for="remitente">Nombre del remitente</label><input id="remitente" type="text"></div><div class="field"><label for="asunto">Asunto</label><input id="asunto" type="text"></div><div class="field"><label for="cuerpo">Cuerpo del correo</label><textarea id="cuerpo"></textarea></div><div class="hint">También puedes usar {nombre}, {apellido}, {fecha} y {hora}.</div></div>
+    </section>
+
+    <section class="panel" id="bloqueos">
+      <div class="intro"><h2>Bloqueos especiales</h2><p>Cierra un día completo o una hora puntual.</p></div>
+      <div class="card"><div class="block-form"><div class="field"><label for="blockType">Tipo</label><select id="blockType"><option value="FECHA">Fecha completa</option><option value="HORARIO">Hora específica</option></select></div><div class="field"><label for="blockDate">Fecha</label><input id="blockDate" type="date"></div><div class="field" id="blockTimeField"><label for="blockTime">Hora</label><input id="blockTime" type="time"></div><div class="field wide"><label for="blockReason">Motivo</label><input id="blockReason" type="text" placeholder="Ej: evento interno"></div><button class="primary" id="addBlock" type="button">Agregar</button></div></div>
+      <div class="block-list" id="blockList"><div class="empty">No hay bloqueos registrados.</div></div>
+    </section>
+  </main>
+  <footer><span class="save-state" id="saveState">Los cambios aún no se han guardado.</span><button class="secondary" type="button" onclick="google.script.host.close()">Cerrar</button><button class="primary" id="saveBtn" type="button">Guardar todos los cambios</button></footer>
+</div>
+<div class="loading" id="loading"><div><div class="spinner"></div><p>Cargando configuración…</p></div></div>
+<div class="toast" id="toast"></div>
+<script>
+  const $=id=>document.getElementById(id); let model=null;
+  const server=(method,...args)=>new Promise((resolve,reject)=>{const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(error=>reject(new Error(error&&error.message?error.message:String(error))));runner[method](...args)});
+  function toast(message,error=false){const el=$('toast');el.textContent=message;el.className='toast show'+(error?' error':'');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.className='toast',3500)}
+  function busy(button,state,label){button.disabled=state;if(label)button.textContent=state?'Procesando…':label}
+  document.querySelectorAll('.tab').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));button.classList.add('active');$(button.dataset.tab).classList.add('active')}));
+  $('showApi').addEventListener('click',()=>{const input=$('apiKey');input.type=input.type==='password'?'text':'password';$('showApi').textContent=input.type==='password'?'Mostrar':'Ocultar'});
+  $('blockType').addEventListener('change',()=>{$('blockTimeField').style.visibility=$('blockType').value==='HORARIO'?'visible':'hidden'});
+  function apply(data){model=data;const c=data.config,s=data.system;$('agendaActiva').checked=c.agendaActiva;$('procesamientoActivo').checked=c.procesamientoActivo;$('intervaloTrigger').value=String(c.intervaloTrigger);$('filaInicio').value=c.filaInicio;$('maxRegistros').value=c.maxRegistros;$('maxReintentos').value=c.maxReintentos;$('avatarId').value=c.avatarId;$('voiceId').value=c.voiceId;$('guion').value=c.guion;$('horarios').value=c.horarios;$('anticipacionHoras').value=c.anticipacionHoras;$('diasMaximoAdelanto').value=c.diasMaximoAdelanto;$('fechasPermitidas').value=c.fechasPermitidas;$('remitente').value=c.remitente;$('asunto').value=c.asunto;$('cuerpo').value=c.cuerpo;$('apiMask').textContent='Actual: '+c.apiKeyMask;$('apiState').textContent=c.apiKeyConfigured?'● API configurada':'● API pendiente';$('lastRow').textContent=s.lastRow;$('sentCount').textContent=s.counts.ENVIADO||0;$('errorCount').textContent=s.counts.ERROR||0;$('triggerState').textContent=(c.procesamientoActivo?'Videos activos':'Videos pausados')+' · '+(s.triggerActive?'trigger cada '+c.intervaloTrigger+' min':'trigger no encontrado');$('headerStatus').textContent=(c.agendaActiva?'Agenda activa':'Agenda pausada')+' · Videos '+(c.procesamientoActivo?'activos':'pausados');$('processBtn').disabled=!c.procesamientoActivo;document.querySelectorAll('#days input').forEach(input=>input.checked=c.dias.includes(Number(input.value)));renderBlocks(data.blocks);$('saveState').textContent='Configuración cargada.'}
+  function collect(){return{apiKey:$('apiKey').value.trim(),avatarId:$('avatarId').value.trim(),voiceId:$('voiceId').value.trim(),guion:$('guion').value.trim(),agendaActiva:$('agendaActiva').checked,procesamientoActivo:$('procesamientoActivo').checked,intervaloTrigger:Number($('intervaloTrigger').value),filaInicio:Number($('filaInicio').value),maxRegistros:Number($('maxRegistros').value),maxReintentos:Number($('maxReintentos').value),horarios:$('horarios').value,dias:[...document.querySelectorAll('#days input:checked')].map(x=>Number(x.value)),anticipacionHoras:Number($('anticipacionHoras').value),diasMaximoAdelanto:Number($('diasMaximoAdelanto').value),fechasPermitidas:$('fechasPermitidas').value,remitente:$('remitente').value.trim(),asunto:$('asunto').value.trim(),cuerpo:$('cuerpo').value.trim()}}
+  async function save(){const btn=$('saveBtn');busy(btn,true);$('saveState').textContent='Guardando y actualizando trigger…';try{const data=await server('guardarPanelAdmin',collect());$('apiKey').value='';apply(data);$('saveState').textContent='Todos los cambios están guardados.';toast('Configuración guardada correctamente.')}catch(error){$('saveState').textContent='No se pudieron guardar los cambios.';toast(error.message,true)}finally{busy(btn,false,'Guardar todos los cambios')}}
+  $('saveBtn').addEventListener('click',save);
+  $('processBtn').addEventListener('click',async()=>{const btn=$('processBtn');busy(btn,true);try{await server('guardarPanelAdmin',collect());const data=await server('procesarDesdeFilaAdmin',Number($('filaInicio').value));apply(data);toast('Procesamiento manual terminado.')}catch(error){toast(error.message,true)}finally{busy(btn,false,'▶ Procesar ahora desde esta fila')}});
+  $('addBlock').addEventListener('click',async()=>{const btn=$('addBlock');busy(btn,true);try{const blocks=await server('guardarBloqueoAdmin',{tipo:$('blockType').value,fecha:$('blockDate').value,hora:$('blockTime').value,motivo:$('blockReason').value});renderBlocks(blocks);$('blockReason').value='';toast('Bloqueo agregado.')}catch(error){toast(error.message,true)}finally{busy(btn,false,'Agregar')}});
+  function esc(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+  function renderBlocks(blocks){const root=$('blockList');if(!blocks||!blocks.length){root.innerHTML='<div class="empty">No hay bloqueos registrados.</div>';return}root.innerHTML=blocks.map(block=>`<div class="block-row"><div><span class="badge ${block.activo?'':'off'}">${esc(block.tipo)}</span></div><strong>${esc(block.fecha)}</strong><span>${esc(block.hora||'Todo el día')}</span><span class="reason">${esc(block.motivo||'Sin motivo')}</span><button class="mini" data-row="${block.row}" data-active="${block.activo}">${block.activo?'Desactivar':'Activar'}</button></div>`).join('');root.querySelectorAll('button[data-row]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{renderBlocks(await server('cambiarEstadoBloqueoAdmin',Number(button.dataset.row),button.dataset.active!=='true'));toast('Bloqueo actualizado.')}catch(error){toast(error.message,true);button.disabled=false}}))}
+  document.querySelectorAll('input,textarea,select').forEach(input=>input.addEventListener('change',()=>{$('saveState').textContent='Hay cambios sin guardar.'}));
+  (async()=>{try{apply(await server('obtenerPanelAdmin'));$('loading').style.display='none';$('blockType').dispatchEvent(new Event('change'));$('saveState').textContent='Configuración cargada.'}catch(error){$('loading').innerHTML='<div><h2>No se pudo abrir el panel</h2><p>'+esc(error.message)+'</p></div>'}})();
+</script>
+</body>
+</html>

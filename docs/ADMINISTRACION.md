@@ -1,6 +1,41 @@
 # Administración diaria
 
-Todo lo operativo se controla desde el Google Sheet.
+Todo lo operativo se controla desde el Google Sheet. La forma recomendada es
+recargar la hoja y abrir **Avovite → Abrir panel de administración**.
+
+## Panel visual
+
+El panel guarda los cambios directamente en la pestaña privada `Config` y los
+aplica al formulario y al proceso automático.
+
+### Resumen
+
+- Pausa o activa nuevas reservas.
+- Pausa o activa por separado la generación de videos y los correos.
+- Escoge cada cuánto corre el trigger: 1, 5, 10, 15 o 30 minutos.
+- Define la fila inicial de procesamiento.
+- Ejecuta el proceso inmediatamente desde esa fila.
+- Consulta cuántas filas están pendientes, generando, enviadas o con error.
+
+La fila inicial no borra ni modifica las filas anteriores; solo indica desde
+dónde debe buscar el proceso. Las filas ya enviadas se siguen omitiendo.
+
+Cuando **Generar videos** está desactivado, el trigger puede seguir apareciendo
+como activo, pero termina sin llamar a HeyGen ni enviar correos. Las reservas
+nuevas quedan pendientes hasta que vuelvas a activarlo.
+
+### HeyGen, agenda y mensajes
+
+Las pestañas del panel permiten cambiar la API key, avatar, voz, guion,
+disponibilidad y correo. Si dejas vacía la API key al guardar, se conserva la
+actual. El panel solo muestra una versión enmascarada de la llave guardada.
+
+### Bloqueos
+
+Desde el panel puedes bloquear una fecha completa o una hora concreta, y
+activar o desactivar cada bloqueo sin eliminarlo.
+
+La pestaña `Config` sigue disponible como alternativa avanzada.
 
 ## Pestaña Config
 
@@ -31,8 +66,13 @@ Todo lo operativo se controla desde el Google Sheet.
 | `ANTICIPACION_HORAS` | `2` | Tiempo mínimo antes de la reunión |
 | `DIAS_MAXIMO_ADELANTO` | `60` | Ventana máxima de reservas |
 | `FECHAS_PERMITIDAS` | `2026-08-03,2026-08-05` | Si tiene contenido, solo permite esas fechas |
+| `INTERVALO_TRIGGER_MINUTOS` | `5` | Frecuencia del proceso automático |
+| `FILA_INICIO_PROCESAMIENTO` | `2` | Primera fila que revisa el proceso |
+| `PROCESAMIENTO_ACTIVO` | `NO` | Pausa o activa HeyGen y los correos |
 
-Después de editar una celda no es necesario ejecutar `CONFIGURAR` nuevamente.
+Después de editar una celda no es necesario ejecutar `CONFIGURAR` nuevamente,
+excepto si cambias manualmente `INTERVALO_TRIGGER_MINUTOS`: en ese caso guarda
+el mismo valor desde el panel para recrear el trigger.
 
 ## Pestaña Bloqueos
 
@@ -57,6 +97,12 @@ Para conservar una fila sin aplicarla, cambia `ACTIVO` a `NO`.
 El mismo correo puede aparecer en diferentes fechas u horas. Lo único que se
 bloquea globalmente es un espacio ya ocupado: misma fecha y misma hora.
 
+## Orden de los registros
+
+Las filas se ordenan por `Marca temporal` ascendente. El sistema aplica el
+mismo orden a reservas del formulario público y respuestas de Google Forms; la
+fecha programada de la reunión no cambia la posición del registro.
+
 ## Pausar o reactivar
 
 Hay dos alternativas:
@@ -68,4 +114,3 @@ Hay dos alternativas:
 
 Las filas que agotan sus intentos quedan en estado `ERROR`. Corrige primero la
 causa indicada en `Último error` y luego ejecuta `REINTENTAR_ERRORES`.
-

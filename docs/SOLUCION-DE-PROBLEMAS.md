@@ -1,5 +1,22 @@
 # Solución de problemas
 
+## La URL del backend muestra texto o JSON
+
+La URL `/exec` es un servicio técnico para el formulario, no el panel de
+administración. En la versión actual, abrirla sin parámetros muestra una página
+informativa. Para administrar el sistema abre el Google Sheet y usa
+**Avovite → Abrir panel de administración**.
+
+## No aparece el menú Avovite
+
+Recarga el Google Sheet después de instalar el código. Si todavía no aparece,
+ejecuta `CONFIGURAR` desde Apps Script, vuelve a la hoja y recárgala.
+
+## El panel no abre o aparece vacío
+
+Comprueba que el proyecto de Apps Script contenga un archivo HTML llamado
+exactamente `Admin` con el contenido de `Admin.html`.
+
 ## El formulario dice que sigue en configuración
 
 La `SCRIPT_URL` de `index.html` todavía es un marcador o no termina en `/exec`.
@@ -19,10 +36,17 @@ También revisa `Bloqueos` y las reservas existentes.
 
 ## La reserva entra, pero no genera video
 
-1. Confirma que `HEYGEN_API_KEY`, `AVATAR_ID` y `VOICE_ID` tengan valores válidos.
-2. Revisa las columnas `Estado`, `Intentos` y `Último error`.
-3. Abre **Apps Script → Ejecuciones** para consultar el error completo.
-4. Corrige el problema y ejecuta `REINTENTAR_ERRORES`.
+1. Confirma en el panel que **Generar videos** esté activado.
+2. Confirma que `HEYGEN_API_KEY`, `AVATAR_ID` y `VOICE_ID` tengan valores válidos.
+3. Revisa las columnas `Estado`, `Intentos` y `Último error`.
+4. Abre **Apps Script → Ejecuciones** para consultar el error completo.
+5. Corrige el problema y ejecuta `REINTENTAR_ERRORES`.
+
+## El formulario dijo que no recibió confirmación, pero la fila existe
+
+La reserva sí llegó y la respuesta visual se perdió o tardó más de lo esperado.
+La versión actual consulta el estado de esa misma solicitud antes de mostrar un
+error, por lo que no debería pedir un segundo envío cuando el registro ya existe.
 
 ## La fila se queda en GENERANDO
 

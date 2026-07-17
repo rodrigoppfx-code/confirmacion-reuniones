@@ -21,6 +21,7 @@ genera un video personalizado en HeyGen y envía la confirmación por correo.
 | `index.html` | Formulario y consulta de disponibilidad | GitHub Pages |
 | `logo.png` | Identidad visual | GitHub Pages |
 | `Code.gs` | Backend de Apps Script | Se copia en el Google Sheet |
+| `Admin.html` | Panel visual de administración | Se agrega al proyecto de Apps Script |
 | `INSTRUCCIONES.md` | Instalación paso a paso | GitHub |
 | `docs/` | Operación y diagnóstico | GitHub |
 
@@ -44,6 +45,19 @@ Valores de prueba actuales:
 - Avatar: `Luca_public`
 - Voz: `72cbcf091d9d48998ce10d7b5c2d569e`
 
+## Panel de administración
+
+Abre el Google Sheet, recarga la página y entra a **Avovite → Abrir panel de
+administración**. Desde allí puedes guardar sin editar código:
+
+- API key, avatar, voz y guion de HeyGen.
+- Horarios, días, fechas permitidas y bloqueos.
+- Activación o pausa total de la agenda.
+- Pausa independiente de HeyGen y correos para detener el consumo de créditos.
+- Intervalo del proceso automático: 1, 5, 10, 15 o 30 minutos.
+- Fila desde la cual debe comenzar el procesamiento.
+- Asunto, remitente y contenido del correo.
+
 ## Flujo técnico
 
 ```mermaid
@@ -65,6 +79,8 @@ flowchart LR
   celda `HEYGEN_API_KEY`.
 - El formulario incluye validación, bloqueo de ejecuciones simultáneas y un
   campo señuelo básico, pero el enlace sigue siendo público.
+- Los registros se mantienen ordenados por `Marca temporal`, no por la fecha
+  futura de la reunión.
 
 ## Licencia
 

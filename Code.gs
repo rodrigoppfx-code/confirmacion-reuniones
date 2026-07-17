@@ -38,7 +38,10 @@ const CONFIG_DEFAULTS = [
   ['ZONA_HORARIA', 'America/Bogota', 'Zona horaria usada en fechas y horas.', 'SISTEMA'],
   ['ORIGEN_PUBLICO', 'https://rodrigoppfx-code.github.io', 'Origen autorizado para recibir la respuesta del formulario.', 'SISTEMA'],
   ['MAX_REINTENTOS', '3', 'Intentos máximos para generar o consultar un video.', 'SISTEMA'],
-  ['MAX_REGISTROS_POR_EJECUCION', '10', 'Filas máximas procesadas por minuto.', 'SISTEMA']
+  ['MAX_REGISTROS_POR_EJECUCION', '10', 'Filas máximas procesadas en cada ejecución.', 'SISTEMA'],
+  ['PROCESAMIENTO_ACTIVO', 'NO', 'SI genera videos y envía correos. NO pausa el consumo de créditos sin cerrar la agenda.', 'SISTEMA'],
+  ['INTERVALO_TRIGGER_MINUTOS', '1', 'Frecuencia del robot: 1, 5, 10, 15 o 30 minutos.', 'SISTEMA'],
+  ['FILA_INICIO_PROCESAMIENTO', '2', 'Primera fila que el robot puede procesar. La fila 1 contiene encabezados.', 'SISTEMA']
 ];
 
 const HEADER_ALIASES = Object.freeze({
@@ -67,32 +70,241 @@ function CONFIGURAR() {
   const hoja = obtenerHojaRespuestas_(ss, cfg);
   const estadoCreado = asegurarColumnasControl_(hoja);
   if (estadoCreado) marcarFilasExistentesComoHistoricas_(hoja);
+  ordenarRegistrosCronologicamente_(hoja, obtenerMapaColumnas_(hoja));
 
+  configurarTrigger_(cfg.INTERVALO_TRIGGER_MINUTOS || 1);
+  configurarTriggerFormulario_(ss);
+
+  ss.toast('Configuración lista. Abre el menú Avovite para administrar el sistema.', 'Avovite', 8);
+}
+
+/** Crea el menú administrativo cada vez que se abre el Google Sheet. */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Avovite')
+    .addItem('Abrir panel de administración', 'MOSTRAR_PANEL_ADMIN')
+    .addSeparator()
+    .addItem('Procesar ahora', 'PROCESAR_AHORA')
+    .addItem('Pausar generación de videos', 'PAUSAR_PROCESAMIENTO')
+    .addItem('Activar generación de videos', 'ACTIVAR_PROCESAMIENTO')
+    .addItem('Pausar agenda', 'PAUSAR_AGENDA')
+    .addItem('Activar agenda', 'ACTIVAR_AGENDA')
+    .addToUi();
+}
+
+/** Abre el panel visual solo dentro del Sheet privado. */
+function MOSTRAR_PANEL_ADMIN() {
+  const html = HtmlService.createHtmlOutputFromFile('Admin')
+    .setWidth(980)
+    .setHeight(720);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Panel de administración · Avovite');
+}
+
+/** Ejecuta el robot manualmente usando la fila inicial guardada. */
+function PROCESAR_AHORA() {
+  procesarRegistros();
+  SpreadsheetApp.getActiveSpreadsheet().toast('Procesamiento manual terminado.', 'Avovite', 5);
+}
+
+/** Cambia la frecuencia real del trigger, evitando duplicados. */
+function configurarTrigger_(minutes) {
+  const allowed = [1, 5, 10, 15, 30];
+  const value = Number(minutes);
+  if (allowed.indexOf(value) === -1) throw new Error('El intervalo debe ser 1, 5, 10, 15 o 30 minutos.');
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
-    if (trigger.getHandlerFunction() === 'procesarRegistros') {
-      ScriptApp.deleteTrigger(trigger);
-    }
+    if (trigger.getHandlerFunction() === 'procesarRegistros') ScriptApp.deleteTrigger(trigger);
   });
-  ScriptApp.newTrigger('procesarRegistros').timeBased().everyMinutes(1).create();
+  ScriptApp.newTrigger('procesarRegistros').timeBased().everyMinutes(value).create();
+  return value;
+}
 
-  SpreadsheetApp.getUi().alert(
-    '✅ Configuración lista.\n\n' +
-    '1. Revisa las pestañas Config y Bloqueos.\n' +
-    '2. Pega tu API key en Config.\n' +
-    '3. Publica el proyecto como Aplicación web.'
-  );
+/** Ordena por llegada cuando Google Forms agrega una respuesta. */
+function configurarTriggerFormulario_(ss) {
+  const exists = ScriptApp.getProjectTriggers().some(function(trigger) {
+    return trigger.getHandlerFunction() === 'AL_RECIBIR_FORMULARIO';
+  });
+  if (!exists) ScriptApp.newTrigger('AL_RECIBIR_FORMULARIO').forSpreadsheet(ss).onFormSubmit().create();
+}
+
+/** Datos seguros para poblar el panel (la API key nunca se devuelve completa). */
+function obtenerPanelAdmin() {
+  const cfg = leerConfig_();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = obtenerHojaRespuestas_(ss, cfg);
+  const map = obtenerMapaColumnas_(sheet);
+  const lastRow = sheet.getLastRow();
+  const counts = {};
+  if (lastRow >= 2) {
+    sheet.getRange(2, map.status, lastRow - 1, 1).getDisplayValues().forEach(function(row) {
+      const status = String(row[0] || 'PENDIENTE').trim() || 'PENDIENTE';
+      counts[status] = (counts[status] || 0) + 1;
+    });
+  }
+  const apiKey = String(cfg.HEYGEN_API_KEY || '');
+  const trigger = ScriptApp.getProjectTriggers().find(function(item) {
+    return item.getHandlerFunction() === 'procesarRegistros';
+  });
+  return {
+    config: {
+      apiKeyConfigured: apiConfigurada_(cfg),
+      apiKeyMask: apiKey && apiKey.indexOf('PEGA_AQUI') !== 0
+        ? apiKey.slice(0, 5) + '••••••••' + apiKey.slice(-4) : 'Sin configurar',
+      avatarId: cfg.AVATAR_ID || '',
+      voiceId: cfg.VOICE_ID || '',
+      guion: cfg.GUION || '',
+      asunto: cfg.ASUNTO || '',
+      cuerpo: cfg.CUERPO || '',
+      remitente: cfg.REMITENTE || '',
+      agendaActiva: esSi_(cfg.AGENDA_ACTIVA),
+      procesamientoActivo: esSi_(cfg.PROCESAMIENTO_ACTIVO),
+      horarios: cfg.HORARIOS_PERMITIDOS || '',
+      dias: lista_(cfg.DIAS_HABILITADOS).map(Number),
+      anticipacionHoras: Number(cfg.ANTICIPACION_HORAS || 2),
+      diasMaximoAdelanto: Number(cfg.DIAS_MAXIMO_ADELANTO || 60),
+      fechasPermitidas: cfg.FECHAS_PERMITIDAS || '',
+      intervaloTrigger: Number(cfg.INTERVALO_TRIGGER_MINUTOS || 1),
+      filaInicio: Number(cfg.FILA_INICIO_PROCESAMIENTO || 2),
+      maxRegistros: Number(cfg.MAX_REGISTROS_POR_EJECUCION || 10),
+      maxReintentos: Number(cfg.MAX_REINTENTOS || 3),
+      hojaRespuestas: cfg.HOJA_RESPUESTAS || APP.DEFAULT_RESPONSE_SHEET
+    },
+    system: {
+      triggerActive: Boolean(trigger),
+      lastRow: lastRow,
+      counts: counts,
+      timeZone: cfg.ZONA_HORARIA || 'America/Bogota'
+    },
+    blocks: listarBloqueosAdmin_()
+  };
+}
+
+/** Guarda todos los cambios del panel y recrea el trigger si es necesario. */
+function guardarPanelAdmin(data) {
+  if (!data || typeof data !== 'object') throw new Error('No se recibieron datos para guardar.');
+  const updates = {
+    AVATAR_ID: limpiarTexto_(data.avatarId, 160, 'Avatar ID'),
+    VOICE_ID: limpiarTexto_(data.voiceId, 160, 'Voice ID'),
+    GUION: limpiarTexto_(data.guion, 5000, 'guion'),
+    ASUNTO: limpiarTexto_(data.asunto, 300, 'asunto'),
+    CUERPO: limpiarTexto_(data.cuerpo, 3000, 'cuerpo del correo'),
+    REMITENTE: limpiarTexto_(data.remitente, 120, 'remitente'),
+    AGENDA_ACTIVA: data.agendaActiva ? 'SI' : 'NO',
+    PROCESAMIENTO_ACTIVO: data.procesamientoActivo ? 'SI' : 'NO',
+    HORARIOS_PERMITIDOS: validarHorariosAdmin_(data.horarios),
+    DIAS_HABILITADOS: validarDiasAdmin_(data.dias),
+    ANTICIPACION_HORAS: String(numeroConfig_(data.anticipacionHoras, 2, 0, 720)),
+    DIAS_MAXIMO_ADELANTO: String(numeroConfig_(data.diasMaximoAdelanto, 60, 1, 730)),
+    FECHAS_PERMITIDAS: validarFechasAdmin_(data.fechasPermitidas),
+    INTERVALO_TRIGGER_MINUTOS: String(validarIntervaloAdmin_(data.intervaloTrigger)),
+    FILA_INICIO_PROCESAMIENTO: String(numeroConfig_(data.filaInicio, 2, 2, 1000000)),
+    MAX_REGISTROS_POR_EJECUCION: String(numeroConfig_(data.maxRegistros, 10, 1, 50)),
+    MAX_REINTENTOS: String(numeroConfig_(data.maxReintentos, 3, 1, 10))
+  };
+  if (String(data.apiKey || '').trim()) {
+    updates.HEYGEN_API_KEY = limpiarTexto_(data.apiKey, 300, 'API key');
+  }
+  Object.keys(updates).forEach(function(key) { actualizarConfig_(key, updates[key]); });
+  configurarTrigger_(updates.INTERVALO_TRIGGER_MINUTOS);
+  return obtenerPanelAdmin();
+}
+
+/** Procesa inmediatamente desde una fila elegida y la guarda como nuevo inicio. */
+function procesarDesdeFilaAdmin(rowNumber) {
+  const row = numeroConfig_(rowNumber, 2, 2, 1000000);
+  actualizarConfig_('FILA_INICIO_PROCESAMIENTO', String(row));
+  procesarRegistrosDesdeFila_(row);
+  return obtenerPanelAdmin();
+}
+
+function guardarBloqueoAdmin(block) {
+  if (!block || typeof block !== 'object') throw new Error('Completa los datos del bloqueo.');
+  const type = String(block.tipo || '').trim().toUpperCase();
+  if (['FECHA', 'HORARIO'].indexOf(type) === -1) throw new Error('Selecciona FECHA u HORARIO.');
+  const date = String(block.fecha || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Selecciona una fecha válida.');
+  const time = type === 'HORARIO' ? normalizarHora_(block.hora) : '';
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APP.BLOCKS_SHEET);
+  sheet.appendRow([type, parseDateOnly_(date), time ? parseTimeOnly_(time) : '', String(block.motivo || '').trim(), 'SI']);
+  const row = sheet.getLastRow();
+  sheet.getRange(row, 2).setNumberFormat('yyyy-mm-dd');
+  if (time) sheet.getRange(row, 3).setNumberFormat('HH:mm');
+  return listarBloqueosAdmin_();
+}
+
+function cambiarEstadoBloqueoAdmin(rowNumber, active) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APP.BLOCKS_SHEET);
+  const row = Number(rowNumber);
+  if (!Number.isInteger(row) || row < 2 || row > sheet.getLastRow()) throw new Error('Bloqueo no válido.');
+  sheet.getRange(row, 5).setValue(active ? 'SI' : 'NO');
+  return listarBloqueosAdmin_();
+}
+
+function listarBloqueosAdmin_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APP.BLOCKS_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const timeZone = leerConfig_().ZONA_HORARIA || 'America/Bogota';
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues().map(function(row, index) {
+    if (!row[0] || !row[1]) return null;
+    return {
+      row: index + 2,
+      tipo: String(row[0]),
+      fecha: normalizarFechaValor_(row[1], timeZone),
+      hora: row[2] ? normalizarHoraValor_(row[2], timeZone) : '',
+      motivo: String(row[3] || ''),
+      activo: String(row[4] || 'SI').toUpperCase() !== 'NO'
+    };
+  }).filter(Boolean).reverse();
+}
+
+function validarIntervaloAdmin_(value) {
+  const number = Number(value);
+  if ([1, 5, 10, 15, 30].indexOf(number) === -1) throw new Error('Selecciona un intervalo permitido.');
+  return number;
+}
+
+function validarHorariosAdmin_(value) {
+  const hours = lista_(value).map(normalizarHora_);
+  if (!hours.length) throw new Error('Agrega al menos un horario.');
+  return Array.from(new Set(hours)).sort().join(',');
+}
+
+function validarDiasAdmin_(value) {
+  const days = Array.isArray(value) ? value.map(Number) : lista_(value).map(Number);
+  const valid = Array.from(new Set(days.filter(function(day) { return day >= 1 && day <= 7; }))).sort();
+  if (!valid.length) throw new Error('Selecciona al menos un día habilitado.');
+  return valid.join(',');
+}
+
+function validarFechasAdmin_(value) {
+  const dates = lista_(value);
+  dates.forEach(function(date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Usa YYYY-MM-DD en fechas permitidas: ' + date);
+  });
+  return Array.from(new Set(dates)).sort().join(',');
 }
 
 /** Pausa las nuevas reservas sin afectar las ya registradas. */
 function PAUSAR_AGENDA() {
   actualizarConfig_('AGENDA_ACTIVA', 'NO');
-  SpreadsheetApp.getUi().alert('⏸️ La agenda quedó pausada.');
+  SpreadsheetApp.getActiveSpreadsheet().toast('La agenda quedó pausada.', 'Avovite', 5);
 }
 
 /** Reactiva las nuevas reservas. */
 function ACTIVAR_AGENDA() {
   actualizarConfig_('AGENDA_ACTIVA', 'SI');
-  SpreadsheetApp.getUi().alert('▶️ La agenda quedó activa.');
+  SpreadsheetApp.getActiveSpreadsheet().toast('La agenda quedó activa.', 'Avovite', 5);
+}
+
+/** Pausa HeyGen y los correos sin cerrar la agenda ni borrar filas. */
+function PAUSAR_PROCESAMIENTO() {
+  actualizarConfig_('PROCESAMIENTO_ACTIVO', 'NO');
+  SpreadsheetApp.getActiveSpreadsheet().toast('Generación de videos pausada. No se consumirán nuevos créditos.', 'Avovite', 8);
+}
+
+/** Reactiva HeyGen y los correos pendientes. */
+function ACTIVAR_PROCESAMIENTO() {
+  actualizarConfig_('PROCESAMIENTO_ACTIVO', 'SI');
+  SpreadsheetApp.getActiveSpreadsheet().toast('Generación de videos activada.', 'Avovite', 5);
 }
 
 /** Devuelve a estado pendiente las filas con ERROR para intentar de nuevo. */
@@ -116,14 +328,31 @@ function REINTENTAR_ERRORES() {
 function doGet(e) {
   try {
     const params = (e && e.parameter) || {};
+    if (!params.action) return paginaServicio_();
     const callback = validarCallback_(params.callback);
-    const action = String(params.action || 'availability');
-    if (action !== 'availability') throw new Error('Acción no disponible.');
-    return responderJsonp_(callback, obtenerDisponibilidad_(params.fecha || ''));
+    const action = String(params.action);
+    if (action === 'availability') return responderJsonp_(callback, obtenerDisponibilidad_(params.fecha || ''));
+    if (action === 'bookingStatus') return responderJsonp_(callback, obtenerEstadoReserva_(params.nonce));
+    throw new Error('Acción no disponible.');
   } catch (error) {
     const callback = validarCallback_((e && e.parameter && e.parameter.callback) || 'avoviteCallback');
     return responderJsonp_(callback, { ok: false, message: mensajeError_(error) });
   }
+}
+
+function paginaServicio_() {
+  const html = '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Servicio Avovite</title>' +
+    '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f5ef;font-family:Arial;color:#22301f}' +
+    '.card{max-width:620px;margin:24px;padding:38px;background:#fff;border-radius:20px;box-shadow:0 18px 50px #1c442326}' +
+    'h1{color:#1c4423;margin-top:0}p{line-height:1.65}.tag{display:inline-block;padding:7px 12px;border-radius:99px;background:#e9f3df;color:#1c4423;font-weight:700}' +
+    'a{display:inline-block;margin-top:12px;padding:13px 20px;border-radius:10px;background:#1c4423;color:#f3e5a5;text-decoration:none;font-weight:700}</style></head>' +
+    '<body><main class="card"><span class="tag">Servicio activo</span><h1>Avovite está funcionando</h1>' +
+    '<p>Este enlace es el servicio técnico que conecta el formulario con Google Sheets. No es el panel administrativo.</p>' +
+    '<p>Para cambiar API, avatar, voz, fechas, horarios o el trigger, abre el Google Sheet y usa <strong>Avovite → Abrir panel de administración</strong>.</p>' +
+    '<a href="https://docs.google.com/spreadsheets/d/1RH0WjPK0fk7rz_0Bh9LVKhzaksx8g85pSt5moXHJBF0/edit" target="_blank">Abrir Google Sheet</a>' +
+    '</main></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle('Servicio Avovite');
 }
 
 /** Recibe una reserva y responde al formulario mediante postMessage. */
@@ -168,25 +397,46 @@ function doPost(e) {
     };
   }
 
+  guardarEstadoReserva_(nonce, result);
   return responderPostMessage_(result, cfg.ORIGEN_PUBLICO || '*');
+}
+
+function guardarEstadoReserva_(nonce, result) {
+  CacheService.getScriptCache().put('reserva_' + validarNonce_(nonce), JSON.stringify(result), 600);
+}
+
+function obtenerEstadoReserva_(nonce) {
+  const validNonce = validarNonce_(nonce);
+  const saved = CacheService.getScriptCache().get('reserva_' + validNonce);
+  if (!saved) return { ok: true, pending: true, nonce: validNonce };
+  const result = JSON.parse(saved);
+  result.pending = false;
+  return result;
 }
 
 /** Robot: solicita videos, consulta su estado y envía los correos. */
 function procesarRegistros() {
+  procesarRegistrosDesdeFila_();
+}
+
+function procesarRegistrosDesdeFila_(forcedStartRow) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return;
 
   try {
     const cfg = leerConfig_();
+    if (!esSi_(cfg.PROCESAMIENTO_ACTIVO)) return;
     if (!apiConfigurada_(cfg)) return;
 
     const hoja = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), cfg);
     asegurarColumnasControl_(hoja);
     const mapa = obtenerMapaColumnas_(hoja);
     const lastRow = hoja.getLastRow();
-    if (lastRow < 2) return;
+    const configuredStart = Number(forcedStartRow || cfg.FILA_INICIO_PROCESAMIENTO || 2);
+    const startRow = Math.max(2, Math.floor(configuredStart));
+    if (lastRow < startRow) return;
 
-    const values = hoja.getRange(2, 1, lastRow - 1, hoja.getLastColumn()).getValues();
+    const values = hoja.getRange(startRow, 1, lastRow - startRow + 1, hoja.getLastColumn()).getValues();
     const maxRows = numeroConfig_(cfg.MAX_REGISTROS_POR_EJECUCION, 10, 1, 50);
     let processed = 0;
 
@@ -197,7 +447,7 @@ function procesarRegistros() {
       if (!email || status === APP.STATUS.SENT || status === APP.STATUS.ERROR) continue;
       if (status && status !== APP.STATUS.GENERATING && status !== APP.STATUS.RETRY) continue;
 
-      const rowNumber = index + 2;
+      const rowNumber = index + startRow;
       processed += 1;
       try {
         if (!status || status === APP.STATUS.RETRY) {
@@ -265,6 +515,8 @@ function asegurarPestanaConfig_(ss) {
   const yesNoValidation = SpreadsheetApp.newDataValidation().requireValueInList(['SI', 'NO'], true).build();
   const agendaCell = buscarCeldaConfig_(sheet, 'AGENDA_ACTIVA');
   if (agendaCell) agendaCell.offset(0, 1).setDataValidation(yesNoValidation);
+  const processingCell = buscarCeldaConfig_(sheet, 'PROCESAMIENTO_ACTIVO');
+  if (processingCell) processingCell.offset(0, 1).setDataValidation(yesNoValidation);
 }
 
 function asegurarPestanaBloqueos_(ss) {
@@ -493,6 +745,27 @@ function guardarReserva_(sheet, map, booking, cfg) {
   sheet.getRange(rowNumber, map.date).setNumberFormat('dd/MM/yyyy');
   sheet.getRange(rowNumber, map.time).setNumberFormat('HH:mm:ss');
   sheet.getRange(rowNumber, map.phone).setNumberFormat('@');
+  ordenarRegistrosCronologicamente_(sheet, map);
+}
+
+/** Mantiene un único orden: marca temporal de llegada, no fecha de reunión. */
+function ordenarRegistrosCronologicamente_(sheet, map) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 3) return;
+  sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).sort({ column: map.timestamp, ascending: true });
+}
+
+/** Trigger instalable para respuestas que llegan desde Google Forms. */
+function AL_RECIBIR_FORMULARIO() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return;
+  try {
+    const cfg = leerConfig_();
+    const sheet = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), cfg);
+    ordenarRegistrosCronologicamente_(sheet, obtenerMapaColumnas_(sheet));
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function generarVideoHeyGen_(cfg, row, map) {

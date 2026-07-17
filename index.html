@@ -357,12 +357,27 @@
       const nonce = `${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
       state.pendingNonce = nonce;
       clearTimeout(state.timeoutId);
-      state.timeoutId = setTimeout(() => {
+      state.timeoutId = setTimeout(async () => {
         if (state.pendingNonce !== nonce) return;
+        showNotice('Estamos verificando que la reserva haya quedado guardada…');
+        try {
+          const status = await jsonp({ action: 'bookingStatus', nonce }, 15000);
+          if (state.pendingNonce !== nonce) return;
+          if (!status.pending && status.ok) {
+            state.pendingNonce = '';
+            $('zonaForm').style.display = 'none';
+            $('zonaExito').style.display = 'block';
+            return;
+          }
+          if (!status.pending && !status.ok) throw new Error(status.message || 'No fue posible reservar este horario.');
+          throw new Error('El servidor sigue procesando. Revisa la agenda antes de enviar nuevamente.');
+        } catch (error) {
+          if (state.pendingNonce !== nonce) return;
+          showNotice(error.message || 'No pudimos verificar la reserva. Revisa la agenda antes de intentar nuevamente.', true);
+        }
         state.pendingNonce = '';
         setSending(false);
-        showNotice('No recibimos confirmación del servidor. Verifica la agenda antes de intentar nuevamente.', true);
-      }, 25000);
+      }, 20000);
 
       const postForm = document.createElement('form');
       postForm.method = 'POST';

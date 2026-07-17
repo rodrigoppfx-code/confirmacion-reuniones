@@ -8,11 +8,14 @@ Google Sheet, nunca en GitHub.
 1. Abre el [Google Sheet](https://docs.google.com/spreadsheets/d/1RH0WjPK0fk7rz_0Bh9LVKhzaksx8g85pSt5moXHJBF0/edit).
 2. Entra a **Extensiones → Apps Script**.
 3. Reemplaza el contenido del editor con el archivo completo `Code.gs`.
-4. Guarda el proyecto como `Avovite Video`.
-5. Selecciona la función `CONFIGURAR` y presiona **Ejecutar**.
-6. Autoriza los permisos solicitados por Google.
-7. Confirma que aparezcan las pestañas `Config` y `Bloqueos`.
-8. En `Config`, completa `HEYGEN_API_KEY`. No pongas esa llave en GitHub.
+4. Pulsa **+ → HTML**, llámalo `Admin` y pega el contenido de `Admin.html`.
+5. Guarda el proyecto como `Avovite Video`.
+6. Selecciona la función `CONFIGURAR` y presiona **Ejecutar**.
+7. Autoriza los permisos solicitados por Google.
+8. Confirma que aparezcan las pestañas `Config` y `Bloqueos`.
+9. Recarga el Google Sheet y abre **Avovite → Abrir panel de administración**.
+10. Completa la API key desde la pestaña **HeyGen** del panel. No pongas esa
+    llave en GitHub.
 
 ### Publicar la aplicación web
 
@@ -25,6 +28,10 @@ Google Sheet, nunca en GitHub.
 
 Cuando actualices `Code.gs`, crea una versión nueva de la implementación; la
 URL `/exec` puede conservarse.
+
+Si también cambia `Admin.html`, reemplázalo en Apps Script antes de crear la
+nueva versión. Ejecuta `CONFIGURAR` una vez cuando una actualización agregue
+nuevos parámetros.
 
 ## Parte B — Formulario en GitHub Pages
 
