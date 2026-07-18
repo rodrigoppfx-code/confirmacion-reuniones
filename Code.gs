@@ -552,7 +552,9 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
           if (MailApp.getRemainingDailyQuota() < 1) throw new Error('No queda cuota diaria de correo.');
           enviarCorreo_(cfg, row, mapa, video.video_url, video.thumbnail_url);
           hoja.getRange(rowNumber, mapa.videoUrl).setValue(video.video_url);
-          hoja.getRange(rowNumber, mapa.sentAt).setValue(new Date()).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+          hoja.getRange(rowNumber, mapa.sentAt).setValue(
+            Utilities.formatDate(new Date(), cfg.ZONA_HORARIA || 'America/Bogota', "yyyy-MM-dd'T'HH:mm:ssXXX")
+          );
           escribirControl_(hoja, rowNumber, mapa, { status: APP.STATUS.SENT, lastError: '' });
         } else if (video.status === 'failed') {
           const failedError = new Error(video.error || 'HeyGen informó que la generación falló.');
@@ -826,10 +828,9 @@ function guardarReserva_(sheet, map, booking, cfg) {
   row[map.lastName - 1] = textoSeguroSheet_(booking.apellido);
   row[map.attempts - 1] = 0;
   sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
-  sheet.getRange(rowNumber, map.timestamp).setNumberFormat('dd/MM/yyyy HH:mm:ss');
-  sheet.getRange(rowNumber, map.date).setNumberFormat('dd/MM/yyyy');
-  sheet.getRange(rowNumber, map.time).setNumberFormat('HH:mm:ss');
-  sheet.getRange(rowNumber, map.phone).setNumberFormat('@');
+  // La pestaña puede ser una tabla tipada de Google Sheets. Aplicar
+  // setNumberFormat() a una columna de texto lanza una excepción después de
+  // guardar la fila y antes de iniciar HeyGen. La tabla conserva sus formatos.
   ordenarRegistrosCronologicamente_(sheet, map);
 }
 

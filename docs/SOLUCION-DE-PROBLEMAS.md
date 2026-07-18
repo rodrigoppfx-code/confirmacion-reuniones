@@ -48,6 +48,13 @@ La reserva sí llegó y la respuesta visual se perdió o tardó más de lo esper
 La versión actual consulta el estado de esa misma solicitud antes de mostrar un
 error, por lo que no debería pedir un segundo envío cuando el registro ya existe.
 
+## Dice que no puede configurar el formato de una columna de texto
+
+La pestaña de respuestas está convertida en una tabla tipada de Google Sheets.
+El sistema no aplica formatos numéricos por fila: deja que la tabla controle la
+presentación de marca temporal, fecha, hora y teléfono. Así la reserva puede
+continuar inmediatamente hacia HeyGen después de guardarse.
+
 ## La fila se queda en GENERANDO
 
 HeyGen todavía puede estar procesando. Si se prolonga demasiado, revisa el
