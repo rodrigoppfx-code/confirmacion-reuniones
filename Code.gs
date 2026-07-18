@@ -11,6 +11,9 @@ const APP = Object.freeze({
   BLOCKS_SHEET: 'Bloqueos',
   SOURCE: 'avovite-agenda',
   DEFAULT_RESPONSE_SHEET: 'Respuestas de formulario 1',
+  IMMEDIATE_FOLLOW_UP_HANDLER: 'procesarSeguimientoInmediato',
+  IMMEDIATE_FOLLOW_UP_DELAY_MS: 60000,
+  IMMEDIATE_PENDING_ROWS_KEY: 'AVOVITE_IMMEDIATE_PENDING_ROWS',
   CONTROL_HEADERS: ['Video ID', 'Estado', 'Intentos', 'Último error'],
   STATUS: Object.freeze({
     GENERATING: 'GENERANDO',
@@ -39,10 +42,10 @@ const CONFIG_DEFAULTS = [
   ['ORIGEN_PUBLICO', 'https://rodrigoppfx-code.github.io', 'Origen autorizado para recibir la respuesta del formulario.', 'SISTEMA'],
   ['MAX_REINTENTOS', '3', 'Intentos máximos para generar o consultar un video.', 'SISTEMA'],
   ['MAX_REGISTROS_POR_EJECUCION', '10', 'Filas máximas procesadas en cada ejecución.', 'SISTEMA'],
-  ['PROCESAMIENTO_ACTIVO', 'NO', 'SI genera videos y envía correos. NO pausa el consumo de créditos sin cerrar la agenda.', 'SISTEMA'],
-  ['INICIO_INMEDIATO', 'SI', 'SI solicita el video al registrarse. NO deja el inicio exclusivamente al trigger periódico.', 'SISTEMA'],
-  ['INTERVALO_TRIGGER_MINUTOS', '1', 'Frecuencia del robot: 1, 5, 10, 15 o 30 minutos.', 'SISTEMA'],
-  ['FILA_INICIO_PROCESAMIENTO', '2', 'Primera fila que el robot puede procesar. La fila 1 contiene encabezados.', 'SISTEMA']
+  ['PROCESAMIENTO_ACTIVO', 'NO', 'SI permite llamadas a HeyGen y correos. NO detiene por completo ese consumo.', 'SISTEMA'],
+  ['INICIO_INMEDIATO', 'SI', 'SI inicia y acompaña cada video nuevo hasta enviarlo. NO usa el proceso periódico.', 'SISTEMA'],
+  ['INTERVALO_TRIGGER_MINUTOS', '1', 'Si INICIO_INMEDIATO es NO, procesa cada 1, 5, 10, 15 o 30 minutos.', 'SISTEMA'],
+  ['FILA_INICIO_PROCESAMIENTO', '2', 'Cursor del modo periódico; avanza hasta la primera fila que todavía requiere trabajo.', 'SISTEMA']
 ];
 
 const HEADER_ALIASES = Object.freeze({
@@ -73,8 +76,15 @@ function CONFIGURAR() {
   if (estadoCreado) marcarFilasExistentesComoHistoricas_(hoja);
   ordenarRegistrosCronologicamente_(hoja, obtenerMapaColumnas_(hoja));
 
-  configurarTrigger_(cfg.INTERVALO_TRIGGER_MINUTOS || 1);
+  configurarTrigger_(cfg.INTERVALO_TRIGGER_MINUTOS || 1, !inicioInmediatoActivo_(cfg));
   configurarTriggerFormulario_(ss);
+  if (esSi_(cfg.PROCESAMIENTO_ACTIVO) && inicioInmediatoActivo_(cfg)) {
+    const pendingRows = filasConSeguimientoPendiente_(hoja, obtenerMapaColumnas_(hoja), 2);
+    if (pendingRows.length) guardarFilasSeguimientoInmediato_(
+      obtenerFilasSeguimientoInmediato_().concat(pendingRows)
+    );
+    if (obtenerFilasSeguimientoInmediato_().length) programarSeguimientoInmediato_();
+  }
 
   ss.toast('Configuración lista. Abre el menú Avovite para administrar el sistema.', 'Avovite', 8);
 }
@@ -108,15 +118,58 @@ function PROCESAR_AHORA() {
 }
 
 /** Cambia la frecuencia real del trigger, evitando duplicados. */
-function configurarTrigger_(minutes) {
+function configurarTrigger_(minutes, enabled) {
   const allowed = [1, 5, 10, 15, 30];
   const value = Number(minutes);
   if (allowed.indexOf(value) === -1) throw new Error('El intervalo debe ser 1, 5, 10, 15 o 30 minutos.');
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if (trigger.getHandlerFunction() === 'procesarRegistros') ScriptApp.deleteTrigger(trigger);
   });
-  ScriptApp.newTrigger('procesarRegistros').timeBased().everyMinutes(value).create();
+  if (enabled !== false) {
+    ScriptApp.newTrigger('procesarRegistros').timeBased().everyMinutes(value).create();
+  }
   return value;
+}
+
+/** Elimina el seguimiento temporal usado por el modo inmediato. */
+function limpiarTriggersSeguimientoInmediato_() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === APP.IMMEDIATE_FOLLOW_UP_HANDLER) ScriptApp.deleteTrigger(trigger);
+  });
+}
+
+/** Programa una sola revisión próxima; nunca crea un trigger periódico adicional. */
+function programarSeguimientoInmediato_() {
+  const exists = ScriptApp.getProjectTriggers().some(function(trigger) {
+    return trigger.getHandlerFunction() === APP.IMMEDIATE_FOLLOW_UP_HANDLER;
+  });
+  if (!exists) {
+    ScriptApp.newTrigger(APP.IMMEDIATE_FOLLOW_UP_HANDLER)
+      .timeBased()
+      .after(APP.IMMEDIATE_FOLLOW_UP_DELAY_MS)
+      .create();
+  }
+}
+
+function obtenerFilasSeguimientoInmediato_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(APP.IMMEDIATE_PENDING_ROWS_KEY) || '';
+  return raw.split(',').map(Number).filter(function(row) { return Number.isInteger(row) && row >= 2; })
+    .filter(function(row, index, rows) { return rows.indexOf(row) === index; })
+    .sort(function(a, b) { return a - b; });
+}
+
+function guardarFilasSeguimientoInmediato_(rows) {
+  const clean = (rows || []).map(Number).filter(function(row) { return Number.isInteger(row) && row >= 2; })
+    .filter(function(row, index, values) { return values.indexOf(row) === index; })
+    .sort(function(a, b) { return a - b; });
+  const properties = PropertiesService.getScriptProperties();
+  if (clean.length) properties.setProperty(APP.IMMEDIATE_PENDING_ROWS_KEY, clean.join(','));
+  else properties.deleteProperty(APP.IMMEDIATE_PENDING_ROWS_KEY);
+  return clean;
+}
+
+function registrarFilaSeguimientoInmediato_(rowNumber) {
+  return guardarFilasSeguimientoInmediato_(obtenerFilasSeguimientoInmediato_().concat([rowNumber]));
 }
 
 /** Ordena por llegada cuando Google Forms agrega una respuesta. */
@@ -145,6 +198,9 @@ function obtenerPanelAdmin() {
   const trigger = ScriptApp.getProjectTriggers().find(function(item) {
     return item.getHandlerFunction() === 'procesarRegistros';
   });
+  const immediateFollowUp = ScriptApp.getProjectTriggers().find(function(item) {
+    return item.getHandlerFunction() === APP.IMMEDIATE_FOLLOW_UP_HANDLER;
+  });
   return {
     config: {
       apiKeyConfigured: apiConfigurada_(cfg),
@@ -172,7 +228,9 @@ function obtenerPanelAdmin() {
     },
     system: {
       triggerActive: Boolean(trigger),
+      immediateFollowUpActive: Boolean(immediateFollowUp),
       lastRow: lastRow,
+      nextRow: lastRow + 1,
       counts: counts,
       timeZone: cfg.ZONA_HORARIA || 'America/Bogota'
     },
@@ -207,7 +265,20 @@ function guardarPanelAdmin(data) {
     updates.HEYGEN_API_KEY = limpiarTexto_(data.apiKey, 300, 'API key');
   }
   Object.keys(updates).forEach(function(key) { actualizarConfig_(key, updates[key]); });
-  configurarTrigger_(updates.INTERVALO_TRIGGER_MINUTOS);
+  const periodicEnabled = updates.INICIO_INMEDIATO === 'NO';
+  configurarTrigger_(updates.INTERVALO_TRIGGER_MINUTOS, periodicEnabled);
+  if (updates.PROCESAMIENTO_ACTIVO === 'NO') {
+    limpiarTriggersSeguimientoInmediato_();
+  } else if (!periodicEnabled) {
+    const cfg = leerConfig_();
+    const sheet = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), cfg);
+    const map = obtenerMapaColumnas_(sheet);
+    const pendingRows = filasConSeguimientoPendiente_(sheet, map, 2);
+    if (pendingRows.length) guardarFilasSeguimientoInmediato_(
+      obtenerFilasSeguimientoInmediato_().concat(pendingRows)
+    );
+    if (obtenerFilasSeguimientoInmediato_().length) programarSeguimientoInmediato_();
+  }
   return obtenerPanelAdmin();
 }
 
@@ -215,7 +286,7 @@ function guardarPanelAdmin(data) {
 function procesarDesdeFilaAdmin(rowNumber) {
   const row = numeroConfig_(rowNumber, 2, 2, 1000000);
   actualizarConfig_('FILA_INICIO_PROCESAMIENTO', String(row));
-  procesarRegistrosDesdeFila_(row);
+  procesarRegistrosDesdeFila_(row, { puedeCrearVideos: true, actualizarCursor: true });
   return obtenerPanelAdmin();
 }
 
@@ -442,11 +513,9 @@ function buscarFilaReserva_(sheet, map, booking, timeZone) {
   return 0;
 }
 
-/** Solicita un video para una fila nueva; el trigger periódico continuará el seguimiento. */
+/** Solicita un video para la fila nueva exacta; la fila inicial no limita el modo inmediato. */
 function iniciarVideoFila_(sheet, rowNumber, map, cfg) {
   if (!esSi_(cfg.PROCESAMIENTO_ACTIVO) || !apiConfigurada_(cfg)) return false;
-  const startRow = numeroConfig_(cfg.FILA_INICIO_PROCESAMIENTO, 2, 2, 1000000);
-  if (rowNumber < startRow) return false;
   if (rowNumber < 2 || rowNumber > sheet.getLastRow()) return false;
   const row = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
   const email = String(valorFila_(row, map.email) || '').trim();
@@ -455,6 +524,10 @@ function iniciarVideoFila_(sheet, rowNumber, map, cfg) {
   const existingVideoId = String(valorFila_(row, map.videoId) || '').trim();
   if (existingVideoUrl || existingVideoId) return false;
   if (!email || status) return false;
+  if (inicioInmediatoActivo_(cfg)) {
+    registrarFilaSeguimientoInmediato_(rowNumber);
+    programarSeguimientoInmediato_();
+  }
   try {
     const videoId = generarVideoHeyGen_(cfg, row, map);
     escribirControl_(sheet, rowNumber, map, {
@@ -489,14 +562,52 @@ function obtenerEstadoReserva_(nonce) {
 
 /** Robot: solicita videos, consulta su estado y envía los correos. */
 function procesarRegistros() {
-  procesarRegistrosDesdeFila_();
+  const cfg = leerConfig_();
+  if (inicioInmediatoActivo_(cfg)) return;
+  procesarRegistrosDesdeFila_(undefined, { puedeCrearVideos: true, actualizarCursor: true });
 }
 
-function procesarRegistrosDesdeFila_(forcedStartRow) {
+/**
+ * Seguimiento temporal del modo inmediato. Solo consulta Video ID existentes,
+ * envía el correo y vuelve a programarse mientras quede algún video pendiente.
+ */
+function procesarSeguimientoInmediato() {
+  limpiarTriggersSeguimientoInmediato_();
+  const cfg = leerConfig_();
+  if (!esSi_(cfg.PROCESAMIENTO_ACTIVO) || !inicioInmediatoActivo_(cfg) || !apiConfigurada_(cfg)) return;
+
+  const sheet = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), cfg);
+  const map = obtenerMapaColumnas_(sheet);
+  let trackedRows = obtenerFilasSeguimientoInmediato_();
+  if (!trackedRows.length) {
+    trackedRows = filasConSeguimientoPendiente_(sheet, map, 2);
+    guardarFilasSeguimientoInmediato_(trackedRows);
+  }
+  if (!trackedRows.length) return;
+
+  procesarRegistrosDesdeFila_(2, {
+    puedeCrearVideos: true,
+    filasPermitidas: trackedRows,
+    actualizarCursor: false
+  });
+
+  const refreshed = leerConfig_();
+  if (!esSi_(refreshed.PROCESAMIENTO_ACTIVO) || !inicioInmediatoActivo_(refreshed)) return;
+  const refreshedSheet = obtenerHojaRespuestas_(SpreadsheetApp.getActiveSpreadsheet(), refreshed);
+  const refreshedMap = obtenerMapaColumnas_(refreshedSheet);
+  const remaining = trackedRows.filter(function(rowNumber) {
+    return filaRequiereTrabajo_(refreshedSheet, refreshedMap, rowNumber);
+  });
+  guardarFilasSeguimientoInmediato_(remaining);
+  if (remaining.length) programarSeguimientoInmediato_();
+}
+
+function procesarRegistrosDesdeFila_(forcedStartRow, options) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return;
 
   try {
+    const opts = options || {};
     const cfg = leerConfig_();
     if (!esSi_(cfg.PROCESAMIENTO_ACTIVO)) return;
     if (!apiConfigurada_(cfg)) return;
@@ -511,11 +622,16 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
 
     const values = hoja.getRange(startRow, 1, lastRow - startRow + 1, hoja.getLastColumn()).getValues();
     const maxRows = numeroConfig_(cfg.MAX_REGISTROS_POR_EJECUCION, 10, 1, 50);
-    const puedeCrearVideos = Boolean(forcedStartRow) || !inicioInmediatoActivo_(cfg);
+    const puedeCrearVideos = opts.puedeCrearVideos !== undefined
+      ? Boolean(opts.puedeCrearVideos) : !inicioInmediatoActivo_(cfg);
+    const soloSeguimiento = Boolean(opts.soloSeguimiento);
+    const filasPermitidas = Array.isArray(opts.filasPermitidas) ? opts.filasPermitidas.map(Number) : null;
     let processed = 0;
 
     for (let index = 0; index < values.length && processed < maxRows; index += 1) {
       const row = values[index];
+      const rowNumber = index + startRow;
+      if (filasPermitidas && filasPermitidas.indexOf(rowNumber) === -1) continue;
       const email = valorFila_(row, mapa.email);
       const status = String(valorFila_(row, mapa.status) || '').trim().toUpperCase();
       const existingVideoUrl = String(valorFila_(row, mapa.videoUrl) || '').trim();
@@ -523,8 +639,8 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
       if (!email || status === APP.STATUS.SENT || status === APP.STATUS.ERROR) continue;
       if (existingVideoUrl) continue;
       if (status && status !== APP.STATUS.GENERATING && status !== APP.STATUS.RETRY) continue;
+      if (soloSeguimiento && !existingVideoId) continue;
 
-      const rowNumber = index + startRow;
       let effectiveStatus = status;
       if (existingVideoId && (!effectiveStatus || effectiveStatus === APP.STATUS.RETRY)) {
         effectiveStatus = APP.STATUS.GENERATING;
@@ -566,9 +682,67 @@ function procesarRegistrosDesdeFila_(forcedStartRow) {
         registrarErrorFila_(hoja, rowNumber, mapa, cfg, error, effectiveStatus);
       }
     }
+    if (opts.actualizarCursor) actualizarCursorProcesamiento_(hoja, mapa, startRow);
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Indica si existe un video ya solicitado que aún requiere consulta o envío. */
+function filasConSeguimientoPendiente_(sheet, map, startRow) {
+  const firstRow = Math.max(2, Number(startRow) || 2);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < firstRow) return [];
+  const values = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, sheet.getLastColumn()).getValues();
+  const rows = [];
+  values.forEach(function(row, index) {
+    const email = String(valorFila_(row, map.email) || '').trim();
+    const videoUrl = String(valorFila_(row, map.videoUrl) || '').trim();
+    const videoId = String(valorFila_(row, map.videoId) || '').trim();
+    const status = String(valorFila_(row, map.status) || '').trim().toUpperCase();
+    if (email && !videoUrl && videoId && status !== APP.STATUS.SENT && status !== APP.STATUS.ERROR) {
+      rows.push(firstRow + index);
+    }
+  });
+  return rows;
+}
+
+function haySeguimientoPendiente_(sheet, map, startRow) {
+  return filasConSeguimientoPendiente_(sheet, map, startRow).length > 0;
+}
+
+function filaRequiereTrabajo_(sheet, map, rowNumber) {
+  if (rowNumber < 2 || rowNumber > sheet.getLastRow()) return false;
+  const row = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const email = String(valorFila_(row, map.email) || '').trim();
+  const videoUrl = String(valorFila_(row, map.videoUrl) || '').trim();
+  const status = String(valorFila_(row, map.status) || '').trim().toUpperCase();
+  return Boolean(email && !videoUrl && status !== APP.STATUS.SENT && status !== APP.STATUS.ERROR && status !== 'HISTORICO');
+}
+
+/**
+ * Avanza el cursor periódico hasta la primera fila que todavía necesita trabajo.
+ * Las filas con URL, enviadas, históricas o en error quedan definitivamente atrás.
+ */
+function actualizarCursorProcesamiento_(sheet, map, currentStartRow) {
+  const firstRow = Math.max(2, Number(currentStartRow) || 2);
+  const lastRow = sheet.getLastRow();
+  let nextRow = lastRow + 1;
+  if (lastRow >= firstRow) {
+    const values = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, sheet.getLastColumn()).getValues();
+    for (let index = 0; index < values.length; index += 1) {
+      const row = values[index];
+      const email = String(valorFila_(row, map.email) || '').trim();
+      const videoUrl = String(valorFila_(row, map.videoUrl) || '').trim();
+      const status = String(valorFila_(row, map.status) || '').trim().toUpperCase();
+      if (email && !videoUrl && status !== APP.STATUS.SENT && status !== APP.STATUS.ERROR && status !== 'HISTORICO') {
+        nextRow = firstRow + index;
+        break;
+      }
+    }
+  }
+  actualizarConfig_('FILA_INICIO_PROCESAMIENTO', String(nextRow));
+  return nextRow;
 }
 
 function asegurarPestanaConfig_(ss) {
@@ -588,6 +762,12 @@ function asegurarPestanaConfig_(ss) {
 
   const missing = CONFIG_DEFAULTS.filter(function(row) { return !existing[row[0]]; });
   if (missing.length) sheet.getRange(sheet.getLastRow() + 1, 1, missing.length, 4).setValues(missing);
+
+  // Conserva los valores privados, pero mantiene claras y actualizadas las descripciones.
+  CONFIG_DEFAULTS.forEach(function(defaultRow) {
+    const keyCell = buscarCeldaConfig_(sheet, defaultRow[0]);
+    if (keyCell) keyCell.offset(0, 2, 1, 2).setValues([[defaultRow[2], defaultRow[3]]]);
+  });
 
   sheet.setFrozenRows(1);
   sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#1C4423').setFontColor('#F3E5A5');

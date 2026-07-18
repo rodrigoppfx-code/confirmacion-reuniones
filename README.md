@@ -2,9 +2,9 @@
 
 Formulario público conectado a Google Sheets, Apps Script, HeyGen y Gmail.
 
-La persona elige un espacio disponible, el sistema evita cruces de agenda,
-inicia inmediatamente un video personalizado en HeyGen y envía la confirmación
-por correo cuando el video termina.
+La persona elige un espacio disponible y el sistema evita cruces de agenda.
+Según la configuración, el video se inicia inmediatamente o durante el siguiente
+ciclo periódico; el correo se envía automáticamente cuando HeyGen termina.
 
 ## Enlaces
 
@@ -56,7 +56,8 @@ administración**. Desde allí puedes guardar sin editar código:
 - Activación o pausa total de la agenda.
 - Pausa independiente de HeyGen y correos para detener el consumo de créditos.
 - Intervalo del proceso automático: 1, 5, 10, 15 o 30 minutos.
-- Fila desde la cual debe comenzar el procesamiento.
+- Modo inmediato completo o modo periódico.
+- Fila desde la cual comienza el modo periódico; el cursor avanza automáticamente.
 - Asunto, remitente y contenido del correo.
 
 ## Flujo técnico
@@ -67,12 +68,24 @@ flowchart LR
     B --> C[Google Sheet]
     A -->|reserva| B
     B -->|fecha y hora libres| C
-    C -->|registro nuevo: inicio inmediato| D[HeyGen]
+    C -->|modo inmediato| D[HeyGen]
     D -->|video terminado| B
     B --> E[Gmail]
     E --> F[Persona invitada]
-    B -->|trigger periódico: seguimiento| D
+    B -->|modo periódico: inicio y seguimiento| D
 ```
+
+### Modos de procesamiento
+
+- `PROCESAMIENTO_ACTIVO = NO`: no se llama a HeyGen, no se consulta ningún video
+  y no se envían correos. La agenda puede continuar recibiendo reservas.
+- `PROCESAMIENTO_ACTIVO = SI` e `INICIO_INMEDIATO = SI`: la fila nueva solicita
+  el video al registrarse. Un seguimiento temporal interno consulta únicamente ese
+  trabajo hasta enviar el correo; no depende del trigger periódico.
+- `PROCESAMIENTO_ACTIVO = SI` e `INICIO_INMEDIATO = NO`: el trigger periódico
+  inicia y consulta los videos desde `FILA_INICIO_PROCESAMIENTO`.
+- Una fila con `Video URL` se considera resuelta. Una fila con `Video ID` se
+  consulta, pero nunca solicita otro video mientras ese identificador exista.
 
 ## Seguridad práctica
 

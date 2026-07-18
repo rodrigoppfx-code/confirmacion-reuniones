@@ -12,32 +12,31 @@ aplica al formulario y al proceso automático.
 
 - Pausa o activa nuevas reservas.
 - Pausa o activa por separado la generación de videos y los correos.
-- Escoge cada cuánto se consulta el estado de los videos: 1, 5, 10, 15 o 30 minutos.
-- Define la fila inicial de procesamiento.
+- Escoge entre procesamiento inmediato completo o procesamiento periódico.
+- Define cada cuánto trabaja el modo periódico: 1, 5, 10, 15 o 30 minutos.
+- Define la primera fila pendiente del modo periódico.
 - Ejecuta el proceso inmediatamente desde esa fila.
 - Consulta cuántas filas están pendientes, generando, enviadas o con error.
 
 La fila inicial no borra ni modifica las filas anteriores; solo indica desde
-dónde debe buscar el proceso. Las filas ya enviadas se siguen omitiendo.
-Por ejemplo, si guardas `13`, ninguna fila entre la 2 y la 12 será enviada a
-HeyGen. El inicio inmediato y el trigger de respaldo comienzan en la fila 13.
+dónde debe buscar el modo periódico o una ejecución manual. El cursor avanza
+automáticamente hasta la primera fila que todavía necesita trabajo. Si guardas
+`13`, ninguna fila entre la 2 y la 12 será enviada a HeyGen por el modo periódico.
+El modo inmediato procesa directamente la fila nueva y no usa ese cursor.
 
 Cuando **Generar videos** está desactivado, el trigger puede seguir apareciendo
 como activo, pero termina sin llamar a HeyGen ni enviar correos. Las reservas
 nuevas quedan pendientes hasta que vuelvas a activarlo.
 
-Cuando **Generar videos** está activado, cada reserva nueva solicita su video
-inmediatamente. El intervalo periódico no controla el inicio: se usa para
-consultar si HeyGen terminó, enviar el correo y recuperar filas pendientes.
-
 El interruptor **Iniciar inmediatamente** permite escoger el modo:
 
-- Activado: la reserva solicita el video al entrar y el trigger hace seguimiento.
-- Desactivado: la fila espera al trigger periódico para iniciar el video.
+- Activado: la reserva solicita el video al entrar y un seguimiento temporal
+  interno continúa hasta enviar el correo. No existe trigger periódico.
+- Desactivado: la fila espera al trigger periódico, que inicia el video, consulta
+  su estado y envía el correo según el intervalo elegido.
 
-Cuando el inicio inmediato está activado, el trigger periódico no crea videos
-nuevos: únicamente consulta los `Video ID` existentes y envía los correos. Una
-ejecución manual desde el panel sí puede iniciar filas pendientes.
+Una ejecución manual desde el panel sí puede iniciar filas pendientes desde la
+fila indicada, independientemente del modo elegido.
 
 Antes de solicitar HeyGen, todos los caminos verifican la fila. Si ya contiene
 `Video URL` o `Video ID`, no crean otro video. Esta protección también aplica
@@ -86,12 +85,14 @@ La pestaña `Config` sigue disponible como alternativa avanzada.
 | `DIAS_MAXIMO_ADELANTO` | `60` | Ventana máxima de reservas |
 | `FECHAS_PERMITIDAS` | `2026-08-03,2026-08-05` | Si tiene contenido, solo permite esas fechas |
 | `INTERVALO_TRIGGER_MINUTOS` | `5` | Frecuencia del proceso automático |
-| `FILA_INICIO_PROCESAMIENTO` | `2` | Primera fila que revisa el proceso |
+| `FILA_INICIO_PROCESAMIENTO` | `2` | Cursor del modo periódico; avanza automáticamente |
 | `PROCESAMIENTO_ACTIVO` | `NO` | Pausa o activa HeyGen y los correos |
+| `INICIO_INMEDIATO` | `SI` | `SI` procesa cada nueva fila; `NO` usa el trigger periódico |
 
 Después de editar una celda no es necesario ejecutar `CONFIGURAR` nuevamente,
-excepto si cambias manualmente `INTERVALO_TRIGGER_MINUTOS`: en ese caso guarda
-el mismo valor desde el panel para recrear el trigger.
+excepto si cambias manualmente `INTERVALO_TRIGGER_MINUTOS` o `INICIO_INMEDIATO`:
+en esos casos ejecuta `CONFIGURAR` para recrear o retirar el trigger. Si haces el
+cambio desde el panel, el ajuste del trigger es automático.
 
 ## Pestaña Bloqueos
 

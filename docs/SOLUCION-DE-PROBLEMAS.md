@@ -58,7 +58,9 @@ continuar inmediatamente hacia HeyGen después de guardarse.
 ## La fila se queda en GENERANDO
 
 HeyGen todavía puede estar procesando. Si se prolonga demasiado, revisa el
-`Video ID` en HeyGen y las ejecuciones de Apps Script.
+`Video ID` en HeyGen y las ejecuciones de Apps Script. En modo inmediato debe
+aparecer un seguimiento temporal mientras haya videos pendientes. En modo
+periódico, el correo puede esperar hasta el siguiente intervalo configurado.
 
 ## No llega el correo
 
@@ -66,6 +68,8 @@ HeyGen todavía puede estar procesando. Si se prolonga demasiado, revisa el
 - Confirma que el correo de la fila sea correcto.
 - Comprueba la cuota diaria de Gmail.
 - Revisa `Último error` y las ejecuciones del script.
+- Comprueba que `PROCESAMIENTO_ACTIVO` esté en `SI`. Cuando está en `NO`, no se
+  consulta HeyGen ni se envía ningún correo.
 
 ## Cambié Code.gs y no se refleja
 
