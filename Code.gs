@@ -1048,29 +1048,55 @@ function AL_RECIBIR_FORMULARIO(e) {
 }
 
 function generarVideoHeyGen_(cfg, row, map) {
+  const title = 'Confirmación - ' + valorFila_(row, map.firstName) + ' ' + valorFila_(row, map.lastName);
   const body = {
-    video_inputs: [{
-      character: { type: 'avatar', avatar_id: cfg.AVATAR_ID, avatar_style: 'normal' },
-      voice: { type: 'text', input_text: conVariables_(cfg.GUION, row, map, cfg), voice_id: cfg.VOICE_ID }
-    }],
-    dimension: { width: 1280, height: 720 },
-    title: 'Confirmación - ' + valorFila_(row, map.firstName) + ' ' + valorFila_(row, map.lastName)
+    type: 'avatar',
+    avatar_id: cfg.AVATAR_ID,
+    script: conVariables_(cfg.GUION, row, map, cfg),
+    voice_id: cfg.VOICE_ID,
+    title: title,
+    aspect_ratio: '16:9',
+    output_format: 'mp4'
   };
-  const json = heygenFetch_('https://api.heygen.com/v2/video/generate', cfg, {
+  const json = heygenFetch_('https://api.heygen.com/v3/videos', cfg, {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(body)
   });
-  if (!json.data || !json.data.video_id) throw new Error(extraerErrorHeyGen_(json));
-  return json.data.video_id;
+  const videoId = json && json.data ? (json.data.id || json.data.video_id) : '';
+  if (!videoId) throw new Error(extraerErrorHeyGen_(json));
+  return videoId;
 }
 
 function consultarEstadoVideo_(cfg, videoId) {
   const json = heygenFetch_(
-    'https://api.heygen.com/v1/video_status.get?video_id=' + encodeURIComponent(videoId), cfg, {}
+    'https://api.heygen.com/v3/videos/' + encodeURIComponent(videoId), cfg, {}
   );
   if (!json.data) throw new Error(extraerErrorHeyGen_(json));
-  return json.data;
+  return normalizarEstadoVideoHeyGenV3_(json.data);
+}
+
+function normalizarEstadoVideoHeyGenV3_(video) {
+  const status = String(video.status || '').toLowerCase();
+  const failureMessage = video.failure_message || (video.error && video.error.message) || '';
+  if (video.failure_code || failureMessage || status === 'failed' || status === 'failure') {
+    return {
+      status: 'failed',
+      error: failureMessage || video.failure_code || 'HeyGen informó que la generación falló.'
+    };
+  }
+  if (video.video_url || video.completed_at || status === 'completed' || status === 'success') {
+    return {
+      status: 'completed',
+      video_url: video.video_url || video.url || '',
+      thumbnail_url: video.thumbnail_url || video.thumbnail || ''
+    };
+  }
+  return {
+    status: status || 'processing',
+    video_url: video.video_url || '',
+    thumbnail_url: video.thumbnail_url || ''
+  };
 }
 
 function heygenFetch_(url, cfg, options) {

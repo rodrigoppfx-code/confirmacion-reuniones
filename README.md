@@ -1,6 +1,6 @@
 # Avovite — Confirmación de reuniones con video
 
-Formulario público conectado a Google Sheets, Apps Script, HeyGen y Gmail.
+Formulario público conectado a Google Sheets, Apps Script, HeyGen API V3 y Gmail.
 
 La persona elige un espacio disponible y el sistema evita cruces de agenda.
 Según la configuración, el video se inicia inmediatamente o durante el siguiente
@@ -40,6 +40,11 @@ ciclo periódico; el correo se envía automáticamente cuando HeyGen termina.
 La API key de HeyGen vive únicamente en la pestaña privada `Config`. El
 repositorio contiene valores de prueba para avatar y voz, pero no contiene la
 API key.
+
+La integración usa los endpoints vigentes de HeyGen API V3:
+
+- Crear video: `POST https://api.heygen.com/v3/videos`
+- Consultar video: `GET https://api.heygen.com/v3/videos/{video_id}`
 
 Valores de prueba actuales:
 

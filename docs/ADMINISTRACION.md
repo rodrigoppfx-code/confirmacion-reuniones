@@ -66,6 +66,11 @@ La pestaña `Config` sigue disponible como alternativa avanzada.
 | `VOICE_ID` | Voz del video |
 | `GUION` | Texto hablado; admite `{nombre}`, `{apellido}`, `{fecha}`, `{hora}` |
 
+El backend usa HeyGen API V3:
+
+- `POST /v3/videos` para crear el video.
+- `GET /v3/videos/{video_id}` para consultar si terminó o falló.
+
 ### Correo
 
 | Parámetro | Uso |
