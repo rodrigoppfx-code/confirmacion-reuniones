@@ -53,7 +53,7 @@ URL pública esperada:
 
 URL actual del backend:
 
-`https://script.google.com/macros/s/AKfycby4OayQ4UqxJv9Utt8pQXimYkqVjo3M8zgJgnnxJhgAo7LppumzAJM53xLv4eYOIgwe/exec`
+`https://script.google.com/macros/s/AKfycbzedp-82NmbrCDuqiXGN_fm9Va8HVYRPZPwr7QpiPk1lMKXighrm_UakulsrVwHzLWV/exec`
 
 ## Comprobación final
 

@@ -9,7 +9,7 @@ ciclo periódico; el correo se envía automáticamente cuando HeyGen termina.
 ## Enlaces
 
 - Formulario público: `https://rodrigoppfx-code.github.io/confirmacion-reuniones/`
-- Backend Apps Script: `https://script.google.com/macros/s/AKfycby4OayQ4UqxJv9Utt8pQXimYkqVjo3M8zgJgnnxJhgAo7LppumzAJM53xLv4eYOIgwe/exec`
+- Backend Apps Script: `https://script.google.com/macros/s/AKfycbzedp-82NmbrCDuqiXGN_fm9Va8HVYRPZPwr7QpiPk1lMKXighrm_UakulsrVwHzLWV/exec`
 - Google Sheet privado: [Confirmaciones HeyGen - Reuniones](https://docs.google.com/spreadsheets/d/1RH0WjPK0fk7rz_0Bh9LVKhzaksx8g85pSt5moXHJBF0/edit)
 - Instalación inicial: [INSTRUCCIONES.md](INSTRUCCIONES.md)
 - Administración diaria: [docs/ADMINISTRACION.md](docs/ADMINISTRACION.md)
